@@ -10,27 +10,28 @@
     #view-input{max-width:1860px}
     #view-input .live-grid{grid-template-columns:minmax(270px,1fr) 350px minmax(270px,1fr) 300px;gap:14px;align-items:stretch}
     .running-score-card{display:flex;flex-direction:column;min-width:280px;overflow:hidden;max-height:610px}
-    .running-score-head{padding:12px 14px 10px;border-bottom:1px solid #d7e0ea;background:#f8fafc;position:sticky;top:0;z-index:3}
+    .running-score-head{padding:12px 14px 10px;border-bottom:1px solid #d7e0ea;background:#f8fafc;position:relative;z-index:4}
     .running-score-head .eyebrow{color:#6f7f91}
     .running-score-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px}
     .running-score-title h2{font-size:17px;margin:0;color:#11243b}
     .running-score-current{font-size:22px;font-weight:900;color:#0d2a4e;white-space:nowrap}
     .running-score-latest{font-size:10px;font-weight:800;color:#65778b;margin-top:4px;min-height:1.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    .running-score-team-head{display:grid;grid-template-columns:1fr 1fr;background:#0d2a4e;color:#fff;font-size:11px;font-weight:900;text-align:center;position:sticky;top:73px;z-index:3}
-    .running-score-team-head span{padding:6px 2px;border-right:2px solid rgba(255,255,255,.32)}
-    .running-score-team-head span:last-child{border-right:0}
-    .running-score-ab-head{display:grid;grid-template-columns:21% 29% 29% 21%;width:100%;background:#fff;color:#0d2a4e;font-size:11px;font-weight:900;text-align:center;position:sticky;top:97px;z-index:3;border-bottom:1px solid #9aa9b8}
+    .running-score-scroll{overflow:auto;flex:1;scroll-behavior:smooth;background:#fff;position:relative}
+    .running-score-team-head{display:grid;grid-template-columns:50% 50%;width:100%;background:#0d2a4e;color:#fff;font-size:11px;font-weight:900;text-align:center;position:sticky;top:0;z-index:3;box-sizing:border-box}
+    .running-score-team-head span{padding:6px 2px;box-sizing:border-box}
+    .running-score-team-head span:first-child{border-right:2px solid rgba(255,255,255,.48)}
+    .running-score-ab-head{display:grid;grid-template-columns:21% 29% 29% 21%;width:100%;background:#fff;color:#0d2a4e;font-size:11px;font-weight:900;text-align:center;position:sticky;top:24px;z-index:3;border-bottom:1px solid #9aa9b8;box-sizing:border-box}
     .running-score-ab-head span{padding:4px 1px;border-right:1px solid #cfd8e2;box-sizing:border-box}
-    .running-score-ab-head span:nth-child(2){border-right:2px solid #8d9bab}
+    .running-score-ab-head span:nth-child(2){border-right:2px solid #7f8d9c}
     .running-score-ab-head span:last-child{border-right:0}
+    .running-score-rows{width:100%}
 
-    .running-score-scroll{overflow:auto;flex:1;scroll-behavior:smooth;background:#fff}
     .running-score-row{display:grid;grid-template-columns:21% 29% 29% 21%;width:100%;min-height:27px;border-bottom:1px solid #dfe6ed;position:relative;font-size:12px;box-sizing:border-box}
     .running-score-row.latest{background:#fff8d9}
     .running-score-scorer,.running-score-total{display:flex;align-items:center;justify-content:center;position:relative;min-width:0;box-sizing:border-box}
     .running-score-scorer,.running-score-total{border-right:1px solid #cfd8e2}
-    .running-score-row > :nth-child(2){border-right:2px solid #8d9bab}
+    .running-score-row > :nth-child(2){border-right:2px solid #7f8d9c}
     .running-score-row > :last-child{border-right:0}
     .running-score-total{font-weight:900;color:#26384d;background:rgba(248,250,252,.72);font-variant-numeric:tabular-nums}
     .running-score-scorer{font-weight:900;background:#fff}
@@ -77,14 +78,17 @@
       <div class="running-score-title"><h2>ランニングスコア</h2><span id="runningScoreCurrent" class="running-score-current">0 - 0</span></div>
       <div id="runningScoreLatest" class="running-score-latest">得点入力をリアルタイム表示</div>
     </div>
-    <div class="running-score-team-head"><span>TEAM A</span><span>TEAM B</span></div>
-    <div class="running-score-ab-head"><span></span><span>A</span><span>B</span><span></span></div>
-    <div id="runningScoreScroll" class="running-score-scroll"><div class="running-score-empty">得点記録はまだありません。</div></div>`;
+    <div id="runningScoreScroll" class="running-score-scroll">
+      <div class="running-score-team-head"><span>TEAM A</span><span>TEAM B</span></div>
+      <div class="running-score-ab-head"><span></span><span>A</span><span>B</span><span></span></div>
+      <div id="runningScoreRows" class="running-score-rows"><div class="running-score-empty">得点記録はまだありません。</div></div>
+    </div>`;
   liveGrid.appendChild(card);
 
   const current = card.querySelector('#runningScoreCurrent');
   const latest = card.querySelector('#runningScoreLatest');
   const scroll = card.querySelector('#runningScoreScroll');
+  const rows = card.querySelector('#runningScoreRows');
   let lastFingerprint = '';
 
   function readState(){
@@ -155,10 +159,10 @@
         <div class="running-score-scorer">${scorerHtml(b)}</div>
       </div>`;
     }
-    scroll.innerHTML = html || '<div class="running-score-empty">得点記録はまだありません。</div>';
+    rows.innerHTML = html || '<div class="running-score-empty">得点記録はまだありません。</div>';
 
     if (latestScore > 0){
-      const row = scroll.querySelector(`[data-score-row="${latestScore}"]`);
+      const row = rows.querySelector(`[data-score-row="${latestScore}"]`);
       if (row) requestAnimationFrame(()=>row.scrollIntoView({block:'center',behavior:'smooth'}));
     }
   }
