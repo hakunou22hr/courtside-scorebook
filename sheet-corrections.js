@@ -27,14 +27,6 @@
     return [...overlay.querySelectorAll('.ov')];
   }
 
-  function findOvNear(x,y,tolX=.8,tolY=.8){
-    return ovElements().find(el=>{
-      const ex=parseFloat(el.style.left)||0;
-      const ey=parseFloat(el.style.top)||0;
-      return Math.abs(ex-x)<=tolX && Math.abs(ey-y)<=tolY;
-    });
-  }
-
   function place(el,x,y,{fontSize,fontWeight='700',color,align='center'}={}){
     if(!el) return;
     el.style.left=`${x}%`;
@@ -45,23 +37,6 @@
     if(fontSize) el.style.fontSize=fontSize;
     if(fontWeight) el.style.fontWeight=fontWeight;
     if(color) el.style.color=color;
-  }
-
-  function makeOverlayText(role,text,x,y,{fontSize='clamp(8px,.85vw,12px)',fontWeight='700'}={}){
-    let el=overlay.querySelector(`[data-correction-role="${role}"]`);
-    if(!text){
-      el?.remove();
-      return null;
-    }
-    if(!el){
-      el=document.createElement('span');
-      el.className='ov small correction-added';
-      el.dataset.correctionRole=role;
-      overlay.appendChild(el);
-    }
-    el.textContent=text;
-    place(el,x,y,{fontSize,fontWeight});
-    return el;
   }
 
   function adjustDate(state){
@@ -81,43 +56,6 @@
       if(row===undefined) return;
       place(el,x,row-QUARTER_SCORE_RAISE,{fontWeight:'800'});
     });
-  }
-
-  function adjustOfficials(state){
-    const g=state.game||{};
-
-    // Existing top officials emitted by app.js. Move each name to the visual
-    // center of its printed writing line and keep it clear of the underline.
-    const topCrew=findOvNear(70,9.2,1.2,1.0);
-    const topU1=findOvNear(68,11.4,1.2,1.0);
-    const topU2=findOvNear(88,11.4,1.2,1.0);
-    place(topCrew,65.7,8.55,{fontSize:'clamp(8px,.9vw,12px)',fontWeight:'800'});
-    place(topU1,61.8,10.65,{fontSize:'clamp(8px,.9vw,12px)',fontWeight:'800'});
-    place(topU2,83.9,10.65,{fontSize:'clamp(8px,.9vw,12px)',fontWeight:'800'});
-
-    // The official scoresheet repeats the officials in the lower-left block.
-    // app.js does not draw these fields, so mirror the same names here.
-    makeOverlayText('bottom-crew-chief',g.crewChief||'',29.0,92.15,{fontSize:'clamp(8px,.9vw,12px)',fontWeight:'800'});
-    makeOverlayText('bottom-umpire1',g.umpire1||'',20.6,95.15,{fontSize:'clamp(8px,.9vw,12px)',fontWeight:'800'});
-    makeOverlayText('bottom-umpire2',g.umpire2||'',40.0,95.15,{fontSize:'clamp(8px,.9vw,12px)',fontWeight:'800'});
-  }
-
-  function adjustCoaches(){
-    // Center the coach names inside the wide name cells instead of leaving
-    // them near the label/license columns.
-    place(findOvNear(18.5,46.4,1.0,.8),22.4,46.25,{fontSize:'clamp(8px,.85vw,12px)',fontWeight:'800'});
-    place(findOvNear(18.5,48.0,1.0,.8),22.4,47.82,{fontSize:'clamp(8px,.85vw,12px)',fontWeight:'800'});
-    place(findOvNear(18.5,84.0,1.0,.8),22.4,83.95,{fontSize:'clamp(8px,.85vw,12px)',fontWeight:'800'});
-    place(findOvNear(18.5,85.6,1.0,.8),22.4,85.52,{fontSize:'clamp(8px,.85vw,12px)',fontWeight:'800'});
-  }
-
-  function adjustFinalScores(){
-    // Final score boxes are wider than the original overlay coordinates.
-    // Put each value in the geometric center and make it roughly twice as large.
-    const a=findOvNear(76,88.5,1.2,.9);
-    const b=findOvNear(92,88.5,1.2,.9);
-    place(a,79.7,88.15,{fontSize:'clamp(18px,2vw,28px)',fontWeight:'900',color:RED});
-    place(b,92.2,88.15,{fontSize:'clamp(18px,2vw,28px)',fontWeight:'900',color:RED});
   }
 
   function collectFouls(state){
@@ -140,8 +78,15 @@
       const type=String(foul.type||'P');
       const ft=Math.max(0,Number(foul.ft)||0);
       const color=inkForQuarter(foul.quarter);
+      const signature=`${type}|${ft}|${color}`;
 
-      mark.textContent='';
+      // Important: do not rebuild the same foul DOM on every observer pass.
+      // Rebuilding children used to trigger sheet-static.js, which then triggered
+      // this observer again and caused the officials to visibly blink.
+      if(mark.dataset.foulCorrection===signature) return;
+      mark.dataset.foulCorrection=signature;
+
+      mark.replaceChildren();
       mark.style.transform='translate(-50%,-50%)';
       mark.style.color=color;
       mark.style.position='absolute';
@@ -157,12 +102,14 @@
       mark.style.overflow='visible';
 
       const main=document.createElement('span');
+      main.className='foul-main';
       main.textContent=type;
       main.style.lineHeight='1';
       mark.appendChild(main);
 
       if(type==='P' && ft>0){
         const badge=document.createElement('span');
+        badge.className='foul-ft-count';
         badge.textContent=String(ft);
         badge.style.position='absolute';
         badge.style.right='-2px';
@@ -184,9 +131,8 @@
     if(state){
       adjustDate(state);
       adjustQuarterScores();
-      adjustOfficials(state);
-      adjustCoaches();
-      adjustFinalScores();
+      // Officials, coaches and final score are intentionally handled only by
+      // sheet-precision-fix.js. Keeping one owner prevents position ping-pong.
       adjustFouls(state);
     }
     if(observer) observer.observe(overlay,{childList:true,subtree:true,characterData:true});
