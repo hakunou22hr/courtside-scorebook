@@ -19,7 +19,7 @@
 
     .running-score-scroll{overflow:auto;flex:1;scroll-behavior:smooth;background:#fff;position:relative}
     .running-score-team-head{display:grid;grid-template-columns:50% 50%;width:100%;background:#0d2a4e;color:#fff;font-size:11px;font-weight:900;text-align:center;position:sticky;top:0;z-index:3;box-sizing:border-box}
-    .running-score-team-head span{padding:6px 2px;box-sizing:border-box}
+    .running-score-team-head span{padding:6px 4px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .running-score-team-head span:first-child{border-right:2px solid rgba(255,255,255,.48)}
     .running-score-ab-head{display:grid;grid-template-columns:21% 29% 29% 21%;width:100%;background:#fff;color:#0d2a4e;font-size:11px;font-weight:900;text-align:center;position:sticky;top:24px;z-index:3;border-bottom:1px solid #9aa9b8;box-sizing:border-box}
     .running-score-ab-head span{padding:4px 1px;border-right:1px solid #cfd8e2;box-sizing:border-box}
@@ -79,7 +79,7 @@
       <div id="runningScoreLatest" class="running-score-latest">得点入力をリアルタイム表示</div>
     </div>
     <div id="runningScoreScroll" class="running-score-scroll">
-      <div class="running-score-team-head"><span>TEAM A</span><span>TEAM B</span></div>
+      <div class="running-score-team-head"><span id="runningScoreTeamA">TEAM A</span><span id="runningScoreTeamB">TEAM B</span></div>
       <div class="running-score-ab-head"><span></span><span>A</span><span>B</span><span></span></div>
       <div id="runningScoreRows" class="running-score-rows"><div class="running-score-empty">得点記録はまだありません。</div></div>
     </div>`;
@@ -89,6 +89,8 @@
   const latest = card.querySelector('#runningScoreLatest');
   const scroll = card.querySelector('#runningScoreScroll');
   const rows = card.querySelector('#runningScoreRows');
+  const teamAHead = card.querySelector('#runningScoreTeamA');
+  const teamBHead = card.querySelector('#runningScoreTeamB');
   let lastFingerprint = '';
 
   function readState(){
@@ -98,6 +100,11 @@
 
   function teamScore(state, team){
     return (state?.teams?.[team]?.players || []).reduce((sum,p)=>sum + Number(p?.stats?.pts || 0),0);
+  }
+
+  function teamName(state, team){
+    const name = String(state?.teams?.[team]?.name || '').trim();
+    return name || `TEAM ${team}`;
   }
 
   function scoringEvents(state){
@@ -130,7 +137,13 @@
     const events = scoringEvents(state);
     const scoreA = teamScore(state,'A');
     const scoreB = teamScore(state,'B');
+    const nameA = teamName(state,'A');
+    const nameB = teamName(state,'B');
     current.textContent = `${scoreA} - ${scoreB}`;
+    teamAHead.textContent = nameA;
+    teamBHead.textContent = nameB;
+    teamAHead.title = nameA;
+    teamBHead.title = nameB;
 
     const byA = new Map(), byB = new Map();
     for (const ev of events){
@@ -141,7 +154,7 @@
 
     const latestEvent = events[events.length - 1];
     latest.textContent = latestEvent
-      ? `最新: Q${latestEvent.quarter} TEAM ${latestEvent.team} #${latestEvent.playerNumber} ${latestEvent.detail} → ${latestEvent.scoreA}-${latestEvent.scoreB}`
+      ? `最新: Q${latestEvent.quarter} ${latestEvent.team === 'A' ? nameA : nameB} #${latestEvent.playerNumber} ${latestEvent.detail} → ${latestEvent.scoreA}-${latestEvent.scoreB}`
       : '得点入力をリアルタイム表示';
 
     const maxScore = Math.max(40, Math.min(160, Math.max(scoreA, scoreB) + 12));
@@ -169,7 +182,11 @@
 
   function fingerprint(state){
     if (!state) return '';
-    return JSON.stringify((state.events || []).map(e=>[e.id,e.team,e.playerNumber,e.action,e.points,e.scoreA,e.scoreB,e.quarter,e.corrected]));
+    return JSON.stringify([
+      state?.teams?.A?.name || '',
+      state?.teams?.B?.name || '',
+      ...(state.events || []).map(e=>[e.id,e.team,e.playerNumber,e.action,e.points,e.scoreA,e.scoreB,e.quarter,e.corrected])
+    ]);
   }
 
   function refresh(){
