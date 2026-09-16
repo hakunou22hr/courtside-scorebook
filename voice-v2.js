@@ -6,11 +6,10 @@
   const originalButton = document.getElementById('voiceBtn');
   if (!status || !originalButton) return;
 
-  // app.js 側の既存音声イベントを外し、iPad向けのタップ式に置き換える。
   const button = originalButton.cloneNode(true);
   originalButton.replaceWith(button);
   const hint = button.querySelector('small');
-  if (hint) hint.textContent = '1回タップで開始・もう一度で停止';
+  if (hint) hint.textContent = '短く続けて話せます・もう一度タップで停止';
   button.setAttribute('aria-pressed', 'false');
 
   const livePanel = document.createElement('div');
@@ -39,9 +38,15 @@
   let listening = false;
   let gotFinal = false;
   let lastFinal = '';
+  let lastInterim = '';
   let hideTimer = null;
 
   const digitMap = {〇:0, 零:0, 一:1, 二:2, 三:3, 四:4, 五:5, 六:6, 七:7, 八:8, 九:9};
+  const kanaDigit = {
+    'れい':0, 'ぜろ':0,
+    'いち':1, 'に':2, 'さん':3, 'よん':4, 'し':4, 'ご':5,
+    'ろく':6, 'なな':7, 'しち':7, 'はち':8, 'きゅう':9, 'く':9
+  };
 
   function showPanel() {
     clearTimeout(hideTimer);
@@ -71,22 +76,36 @@
       .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
       .replace(/[、。，．,.!！?？・\s]/g, '')
       .replace(/ポイント/g, '点')
-      .replace(/てん|テン/g, '点')
-      .replace(/フリー・?スロー/g, 'フリースロー')
-      .replace(/ターン・?オーバー/g, 'ターンオーバー');
+      .replace(/いってん|いちてん|一点|1てん|１てん/g, '1点')
+      .replace(/にてん|二点|2てん|２てん/g, '2点')
+      .replace(/さんてん|三点|3てん|３てん/g, '3点')
+      .replace(/フリー・?スロー|フリースロウ|フリースロ/g, 'フリースロー')
+      .replace(/ターン・?オーバー|ターンオーバ/g, 'ターンオーバー')
+      .replace(/オフェンシブリバウンド|オフェンスリバン(?:ド)?/g, 'オフェンスリバウンド')
+      .replace(/ディフェンシブリバウンド|ディフェンスリバン(?:ド)?/g, 'ディフェンスリバウンド')
+      .replace(/アシストー/g, 'アシスト');
   }
 
   function japaneseNumber(token) {
-    const s = String(token || '');
-    if (/^\d{1,2}$/.test(s)) return Number(s);
-    if (s === '十') return 10;
-    if (s.includes('十')) {
-      const [left, right] = s.split('十');
+    const raw = String(token || '').toLowerCase();
+    if (/^\d{1,2}$/.test(raw)) return Number(raw);
+    if (raw === '十' || raw === 'じゅう') return 10;
+
+    if (raw.includes('十')) {
+      const [left, right] = raw.split('十');
       const tens = left === '' ? 1 : digitMap[left];
       const ones = right === '' ? 0 : digitMap[right];
       return tens != null && ones != null ? tens * 10 + ones : null;
     }
-    return s.length === 1 && digitMap[s] != null ? digitMap[s] : null;
+    if (raw.includes('じゅう')) {
+      const [left, right] = raw.split('じゅう');
+      const tens = left === '' ? 1 : kanaDigit[left];
+      const ones = right === '' ? 0 : kanaDigit[right];
+      return tens != null && ones != null ? tens * 10 + ones : null;
+    }
+    if (raw.length === 1 && digitMap[raw] != null) return digitMap[raw];
+    if (kanaDigit[raw] != null) return kanaDigit[raw];
+    return null;
   }
 
   function readState() {
@@ -99,17 +118,74 @@
   }
 
   function extractTeam(s) {
-    // ユーザー指定: 白 = TEAM A、青 = TEAM B
-    if (/白|チームA|TEAMA/i.test(s)) return 'A';
-    if (/青|チームB|TEAMB/i.test(s)) return 'B';
+    // ユーザー指定: 白 = TEAM A、青 = TEAM B。
+    // iPadの音声認識で「しろ」「あお」とひらがなになる場合も許容する。
+    if (/白|しろ|シロ|チームA|TEAMA/i.test(s)) return 'A';
+    if (/青|あお|アオ|チームB|TEAMB/i.test(s)) return 'B';
     // 従来呼称も残す。
-    if (/黒|赤/.test(s)) return 'B';
+    if (/黒|くろ|クロ|赤|あか|アカ/.test(s)) return 'B';
     return readState()?.selected?.team || null;
   }
 
   function extractPlayerNumber(s) {
-    const m = s.match(/(\d{1,2}|[〇零一二三四五六七八九十]{1,3})番/);
+    const m = s.match(/(\d{1,2}|[〇零一二三四五六七八九十]{1,4}|[ぁ-ん]{1,10})(?:番|ばん)/);
     return m ? japaneseNumber(m[1]) : null;
+  }
+
+  function determineAction(s) {
+    // スタッツ系は得点より先に判定する。
+    if (/ターンオーバー|TOV|TO$/i.test(s)) return 'tov';
+    if (/オフェンスリバウンド|オフェンスREB|OREB/i.test(s)) return 'oreb';
+    if (/ディフェンスリバウンド|ディフェンスREB|DREB/i.test(s)) return 'dreb';
+    if (/アシスト|AST/i.test(s)) return 'ast';
+    if (/スティール|スチール|STL/i.test(s)) return 'stl';
+    if (/ブロック|ブロックショット|BLK/i.test(s)) return 'blk';
+
+    if (/フリースロー失敗|FT失敗/i.test(s)) return 'ftx';
+    if (/フリースロー(?:1点|成功)?|FT(?:1点|成功)/i.test(s)) return 'ftm';
+    if (/3P失敗|3点失敗|スリー失敗/i.test(s)) return 'fg3x';
+    if (/2P失敗|2点失敗|ツー失敗/i.test(s)) return 'fg2x';
+    if (/3点|3P|スリー(?:ポイント)?/i.test(s)) return 'fg3m';
+    if (/2点|2P|ツー(?:ポイント)?/i.test(s)) return 'fg2m';
+    if (/1点/i.test(s)) return 'ftm';
+    return null;
+  }
+
+  function parseCommand(raw) {
+    const s = normalize(raw);
+    const team = extractTeam(s);
+    const number = extractPlayerNumber(s);
+    const foul = /ファウル/.test(s);
+    const action = foul ? 'foul' : determineAction(s);
+    let ft = 0;
+    if (foul) {
+      const ftm = s.match(/(?:FT|フリースロー)([123一二三])(?:本|点)?/i);
+      ft = ftm ? japaneseNumber(ftm[1]) || 0 : 0;
+    }
+    const complete = !!team && number != null && !!action;
+    return { raw, s, team, number, action, ft, complete };
+  }
+
+  function commandScore(parsed, confidence = 0) {
+    let score = confidence || 0;
+    if (parsed.team) score += 4;
+    if (parsed.number != null) score += 4;
+    if (parsed.action) score += 6;
+    if (parsed.complete) score += 10;
+    return score;
+  }
+
+  function chooseBestAlternative(result) {
+    let best = null;
+    const count = Math.min(result.length || 1, 5);
+    for (let j = 0; j < count; j++) {
+      const alt = result[j];
+      if (!alt?.transcript) continue;
+      const parsed = parseCommand(alt.transcript);
+      const score = commandScore(parsed, Number.isFinite(alt.confidence) ? alt.confidence : 0);
+      if (!best || score > best.score) best = { text: alt.transcript.trim(), parsed, score };
+    }
+    return best;
   }
 
   function selectPlayer(team, number) {
@@ -144,30 +220,8 @@
     return true;
   }
 
-  function determineAction(s) {
-    // スタッツ系を得点判定より先に処理する。
-    if (/ターンオーバー|ターンオーバ|TOV|TO$/i.test(s)) return 'tov';
-    if (/オフェンスリバウンド|オフェンシブリバウンド|OREB/i.test(s)) return 'oreb';
-    if (/ディフェンスリバウンド|ディフェンシブリバウンド|DREB/i.test(s)) return 'dreb';
-    if (/アシスト|AST/i.test(s)) return 'ast';
-    if (/スティール|STL/i.test(s)) return 'stl';
-    if (/ブロック|BLK/i.test(s)) return 'blk';
-
-    if (/フリースロー失敗|FT失敗/i.test(s)) return 'ftx';
-    if (/フリースロー(?:1点|一点|成功)?|FT(?:1点|一点|成功)/i.test(s)) return 'ftm';
-    if (/3P失敗|3点失敗|三点失敗|スリー失敗/i.test(s)) return 'fg3x';
-    if (/2P失敗|2点失敗|二点失敗|ツー失敗/i.test(s)) return 'fg2x';
-    if (/3点|三点|3P|スリー(?:ポイント)?/i.test(s)) return 'fg3m';
-    if (/2点|二点|2P|ツー(?:ポイント)?/i.test(s)) return 'fg2m';
-    if (/1点|一点/i.test(s)) return 'ftm';
-    return null;
-  }
-
-  function execute(raw) {
-    const s = normalize(raw);
-    const team = extractTeam(s);
-    const number = extractPlayerNumber(s);
-
+  function executeParsed(parsed) {
+    const { raw, team, number, action, ft } = parsed;
     if (!team) {
       feedback(`認識: ${raw} ／ 「白」または「青」を最初に話してください`);
       return false;
@@ -176,38 +230,40 @@
       feedback(`認識: ${raw} ／ 選手番号を読み取れません`);
       return false;
     }
+    if (!action) {
+      feedback(`認識: ${raw} ／ コマンドを特定できません`);
+      return false;
+    }
     if (!selectPlayer(team, number)) {
       feedback(`認識: ${raw} ／ ${team === 'A' ? '白' : '青'} ${number}番が見つかりません`);
       return false;
     }
 
-    if (/ファウル/.test(s)) {
-      const ftm = s.match(/(?:FT|フリースロー)([123一二三])本?/i);
-      const ft = ftm ? japaneseNumber(ftm[1]) : 0;
+    if (action === 'foul') {
       if (recordFoul(ft)) {
         feedback(`入力完了: ${raw}`);
         return true;
       }
-    }
-
-    const action = determineAction(s);
-    if (!action) {
-      feedback(`認識: ${raw} ／ コマンドを特定できません`);
+      feedback(`認識: ${raw} ／ ファウル入力を実行できません`);
       return false;
     }
+
     if (!clickAction(action)) {
       feedback(`認識: ${raw} ／ 入力ボタンを実行できません`);
       return false;
     }
-
     feedback(`入力完了: ${raw}`);
     return true;
+  }
+
+  function execute(raw) {
+    return executeParsed(parseCommand(raw));
   }
 
   async function primeMic() {
     if (!navigator.mediaDevices?.getUserMedia) return true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(t => t.stop());
       return true;
     } catch {
@@ -221,39 +277,49 @@
     r.lang = 'ja-JP';
     r.interimResults = true;
     r.continuous = false;
-    r.maxAlternatives = 1;
-    let lastInterim = '';
+    // 1候補固定ではなく複数候補から、バスケットボールのコマンドとして最も成立する候補を選ぶ。
+    r.maxAlternatives = 5;
+    lastInterim = '';
 
     r.onstart = () => {
       starting = false;
       listening = true;
       gotFinal = false;
       lastFinal = '';
+      lastInterim = '';
       button.classList.add('is-listening');
       button.setAttribute('aria-pressed', 'true');
       transcript('');
-      feedback('🔴 音声入力開始・話してください');
+      feedback('🔴 音声入力開始・普通の速さで話してください');
     };
 
     r.onresult = e => {
-      let interim = '';
-      let finalText = '';
+      let interimBest = null;
+      let finalBest = null;
+
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const text = e.results[i]?.[0]?.transcript || '';
-        if (e.results[i].isFinal) finalText += text;
-        else interim += text;
+        const result = e.results[i];
+        const best = chooseBestAlternative(result);
+        if (!best) continue;
+        if (result.isFinal) {
+          if (!finalBest || best.score > finalBest.score) finalBest = best;
+        } else {
+          if (!interimBest || best.score > interimBest.score) interimBest = best;
+        }
       }
-      if (interim.trim()) {
-        lastInterim = interim.trim();
+
+      if (interimBest?.text) {
+        lastInterim = interimBest.text;
         transcript(lastInterim, false);
       }
-      if (finalText.trim()) {
-        const text = finalText.trim();
+
+      if (finalBest?.text) {
         gotFinal = true;
-        transcript(text, true);
-        if (text !== lastFinal) {
-          lastFinal = text;
-          execute(text);
+        transcript(finalBest.text, true);
+        const key = normalize(finalBest.text);
+        if (key !== lastFinal) {
+          lastFinal = key;
+          executeParsed(finalBest.parsed);
         }
       }
     };
@@ -263,7 +329,14 @@
       listening = false;
       button.classList.remove('is-listening');
       button.setAttribute('aria-pressed', 'false');
-      feedback(`音声入力エラー: ${e.error || 'unknown'}`);
+      const names = {
+        'no-speech':'音声が聞き取れませんでした',
+        'audio-capture':'マイクを使用できません',
+        'not-allowed':'マイクまたは音声認識が許可されていません',
+        'network':'音声認識の通信に失敗しました',
+        'aborted':'音声入力を停止しました'
+      };
+      feedback(names[e.error] || `音声入力エラー: ${e.error || 'unknown'}`);
       hidePanel();
     };
 
@@ -272,10 +345,11 @@
       listening = false;
       button.classList.remove('is-listening');
       button.setAttribute('aria-pressed', 'false');
-      // Safariで最終結果にならず終了した時だけ、最後の途中結果を1回解析する。
+      // Safariで最終結果にならず終了したときは、最後の途中結果を解析する。
       if (!gotFinal && lastInterim) {
+        const parsed = parseCommand(lastInterim);
         transcript(lastInterim, true);
-        execute(lastInterim);
+        executeParsed(parsed);
       }
       hidePanel();
     };
@@ -322,5 +396,5 @@
 
   if (!SR) status.textContent = '音声入力は対応ブラウザで使用してください';
   else if (isIOSNonSafari) status.textContent = 'iPadではSafariで開いてください';
-  else status.textContent = '音声入力：白/青 → 背番号 → 内容 の順に話してください';
+  else status.textContent = '音声入力：白/青 → 背番号 → 得点・スタッツを普通の速さで話してください';
 })();
