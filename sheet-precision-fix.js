@@ -45,8 +45,6 @@
 
   function fixTopOfficials(s){
     const g=s?.game||{};
-    // One script owns these three positions. This avoids the previous
-    // alternating coordinates that made the umpire names blink.
     place(byText(g.crewChief,0,15),79.3,8.05,{size:'clamp(8px,.9vw,12px)'});
     place(byText(g.umpire1,0,15),69.0,10.55,{size:'clamp(8px,.9vw,12px)'});
     place(byText(g.umpire2,0,15),89.0,10.55,{size:'clamp(8px,.9vw,12px)'});
@@ -99,4 +97,13 @@
   window.addEventListener('storage',schedule);
   document.getElementById('refreshSheet')?.addEventListener('click',()=>setTimeout(schedule,0));
   schedule();
+
+  // History correction editor is kept separate from the core scoring code so
+  // past score/stat entries can be corrected safely without changing live input.
+  if(!document.querySelector('script[data-history-editor]')){
+    const s=document.createElement('script');
+    s.src='history-editor.js?v=1';
+    s.dataset.historyEditor='1';
+    document.body.appendChild(s);
+  }
 })();
