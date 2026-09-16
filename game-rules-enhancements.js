@@ -53,7 +53,6 @@
     .timeout-choice-b{background:#27233f;color:#fff}
     .timeout-choice-cancel{margin-top:12px;width:100%;background:#eef3f7!important;color:#23364a!important;padding:12px!important}
     .timeout-choice-grid small{display:block;font-size:11px;font-weight:700;opacity:.8;margin-top:4px}
-    #rulesSheetOverlay{position:absolute;inset:0;pointer-events:none;z-index:7}
     .sheet-team-foul-mark,.sheet-timeout-mark{position:absolute;transform:translate(-50%,-50%);font-family:Arial,'Noto Sans JP',sans-serif;font-weight:900;text-align:center;line-height:1}
     .sheet-team-foul-mark{font-size:clamp(8px,1.05vw,14px)}
     .sheet-timeout-mark{font-size:clamp(7px,.92vw,12px)}
@@ -138,21 +137,17 @@
   },true);
 
   // ---- Official scoresheet: timeout minute + team foul X -------------------
-  // Positions measured from the supplied 442 x 720 official sheet image.
-  const TIMEOUT_X={first:[7.58,10.52],second:[7.58,10.52,13.46],ot:[7.58,10.52,13.46]};
-  const TIMEOUT_Y={
-    A:{first:8.05,second:10.55,ot:13.05},
-    B:{first:49.65,second:52.15,ot:54.65}
+  // Native coordinates inside each independently clipped scoresheet block.
+  const TIMEOUT_POSITIONS={
+    first:[[35,37],[65,37]],
+    second:[[100,37],[130,37],[160,37]],
+    ot:[[100,54],[130,54],[160,54]]
   };
-  const TEAM_FOUL_X={
-    1:[20.48,23.30,26.13,28.96],
-    2:[34.62,37.44,40.27,42.99],
-    3:[20.48,23.30,26.13,28.96],
-    4:[34.62,37.44,40.27,42.99]
-  };
-  const TEAM_FOUL_Y={
-    A:{1:8.05,2:8.05,3:10.55,4:10.55},
-    B:{1:49.65,2:49.65,3:52.15,4:52.15}
+  const TEAM_FOUL_POSITIONS={
+    1:[[18,37],[46,37],[74,37],[102,37]],
+    2:[[142,37],[170,37],[198,37],[226,37]],
+    3:[[18,54],[46,54],[74,54],[102,54]],
+    4:[[142,54],[170,54],[198,54],[226,54]]
   };
 
   function remainingMinute(clock){
@@ -179,44 +174,33 @@
 
   function markHtml(cls,x,y,color,text,title=''){
     const safeTitle=String(title).replace(/"/g,'&quot;');
-    return `<span class="${cls}" style="left:${x}%;top:${y}%;color:${color}" title="${safeTitle}">${text}</span>`;
+    return `<span class="${cls}" style="left:${x}px;top:${y}px;color:${color}" title="${safeTitle}">${text}</span>`;
   }
 
   function renderSheetMarks(state){
     const overlay=document.getElementById('sheetOverlay');
     if(!overlay||!state) return;
-
-    let html='';
     for(const team of ['A','B']){
-      const events=timeoutEvents(state,team);
+      const timeoutBlock=overlay.querySelector(`[data-sheet-block="team${team}TimeoutBlock"]`);
+      const foulBlock=overlay.querySelector(`[data-sheet-block="team${team}FoulsSummaryBlock"]`);
+      if(!timeoutBlock||!foulBlock) continue;
       const buckets={first:[],second:[],ot:[]};
-      for(const ev of events){
+      for(const ev of timeoutEvents(state,team)){
         const q=Number(ev.quarter)||1;
-        if(q<=2) buckets.first.push(ev);
-        else if(q<=4) buckets.second.push(ev);
-        else buckets.ot.push(ev);
+        buckets[q<=2?'first':q<=4?'second':'ot'].push(ev);
       }
-      for(const key of ['first','second','ot']){
-        buckets[key].slice(0,TIMEOUT_X[key].length).forEach((ev,i)=>{
-          html+=markHtml('sheet-timeout-mark',TIMEOUT_X[key][i],TIMEOUT_Y[team][key],inkForQuarter(ev.quarter),remainingMinute(ev.clock),`Q${ev.quarter} 残り ${Math.floor((Number(ev.clock)||0)/60)}分`);
-        });
+      const timeoutHtml=['first','second','ot'].flatMap(key=>buckets[key].slice(0,TIMEOUT_POSITIONS[key].length).map((ev,i)=>{
+        const [x,y]=TIMEOUT_POSITIONS[key][i];
+        return markHtml('sheet-timeout-mark',x,y,inkForQuarter(ev.quarter),remainingMinute(ev.clock),`Q${ev.quarter} 残り ${remainingMinute(ev.clock)}分`);
+      })).join('');
+      if(timeoutBlock.innerHTML!==timeoutHtml) timeoutBlock.innerHTML=timeoutHtml;
+      let fouls='';
+      for(let q=1;q<=4;q++) for(let i=0;i<foulCountForQuarter(state,team,q);i++){
+        const [x,y]=TEAM_FOUL_POSITIONS[q][i];
+        fouls+=markHtml('sheet-team-foul-mark',x,y,inkForQuarter(q),'×',`TEAM ${team} Q${q} チームファウル ${i+1}`);
       }
-
-      for(let q=1;q<=4;q++){
-        const count=foulCountForQuarter(state,team,q);
-        for(let i=0;i<count;i++){
-          html+=markHtml('sheet-team-foul-mark',TEAM_FOUL_X[q][i],TEAM_FOUL_Y[team][q],inkForQuarter(q),'×',`TEAM ${team} Q${q} チームファウル ${i+1}`);
-        }
-      }
+      if(foulBlock.innerHTML!==fouls) foulBlock.innerHTML=fouls;
     }
-
-    let layer=document.getElementById('rulesSheetOverlay');
-    if(!layer){
-      layer=document.createElement('div');
-      layer.id='rulesSheetOverlay';
-      overlay.appendChild(layer);
-    }
-    if(layer.innerHTML!==html) layer.innerHTML=html;
   }
 
   function sheetSignature(state){
@@ -230,7 +214,7 @@
     const state=loadState();
     if(!state) return;
     const sig=sheetSignature(state);
-    const missing=!document.getElementById('rulesSheetOverlay');
+    const missing=!document.querySelector('.sheet-timeout-mark,.sheet-team-foul-mark') && /timeout|foul/.test(sig);
     if(!force && sig===lastSheetSignature && !missing) return;
     lastSheetSignature=sig;
     renderSheetMarks(state);
@@ -239,7 +223,7 @@
   const overlay=document.getElementById('sheetOverlay');
   if(overlay){
     const observer=new MutationObserver(()=>{
-      if(!document.getElementById('rulesSheetOverlay')) refreshSheetMarks(true);
+      refreshSheetMarks(true);
     });
     observer.observe(overlay,{childList:true});
   }
