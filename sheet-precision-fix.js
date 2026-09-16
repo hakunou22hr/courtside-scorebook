@@ -10,19 +10,12 @@
     try{return JSON.parse(localStorage.getItem(KEY))||null}catch{return null}
   }
   function all(){return [...overlay.querySelectorAll('.ov')];}
-  function byText(text, minY=-Infinity, maxY=Infinity){
+  function byText(text,minY=-Infinity,maxY=Infinity){
     if(!text) return null;
     const target=String(text).trim();
     return all().find(el=>{
       const y=parseFloat(el.style.top)||0;
       return el.textContent.trim()===target && y>=minY && y<=maxY;
-    })||null;
-  }
-  function near(x,y,tx=2,ty=2){
-    return all().find(el=>{
-      const ex=parseFloat(el.style.left)||0;
-      const ey=parseFloat(el.style.top)||0;
-      return Math.abs(ex-x)<=tx && Math.abs(ey-y)<=ty;
     })||null;
   }
   function place(el,x,y,{size,weight='800',color,align='center'}={}){
@@ -36,34 +29,45 @@
     if(size) el.style.fontSize=size;
     if(color) el.style.color=color;
   }
+  function correctionText(role,text,x,y,{size='clamp(8px,.9vw,12px)',weight='800'}={}){
+    let el=overlay.querySelector(`[data-precision-role="${role}"]`);
+    if(!text){el?.remove();return null;}
+    if(!el){
+      el=document.createElement('span');
+      el.className='ov small precision-added';
+      el.dataset.precisionRole=role;
+      overlay.appendChild(el);
+    }
+    if(el.textContent!==text) el.textContent=text;
+    place(el,x,y,{size,weight});
+    return el;
+  }
 
   function fixTopOfficials(s){
     const g=s?.game||{};
-    // Move names into the blank writing areas to the right of the printed labels.
+    // One script owns these three positions. This avoids the previous
+    // alternating coordinates that made the umpire names blink.
     place(byText(g.crewChief,0,15),79.3,8.05,{size:'clamp(8px,.9vw,12px)'});
     place(byText(g.umpire1,0,15),69.0,10.55,{size:'clamp(8px,.9vw,12px)'});
     place(byText(g.umpire2,0,15),89.0,10.55,{size:'clamp(8px,.9vw,12px)'});
   }
 
   function fixCoaches(s){
-    const A=s?.teams?.A||{}, B=s?.teams?.B||{};
-    // Put coach names in the center of the wide name cells and vertically center each row.
+    const A=s?.teams?.A||{},B=s?.teams?.B||{};
     place(byText(A.coach,42,50),26.2,45.45,{size:'clamp(8px,.85vw,12px)'});
     place(byText(A.assistant,42,51),26.2,46.85,{size:'clamp(8px,.85vw,12px)'});
     place(byText(B.coach,80,87),26.2,83.15,{size:'clamp(8px,.85vw,12px)'});
     place(byText(B.assistant,80,88),26.2,84.55,{size:'clamp(8px,.85vw,12px)'});
   }
 
-  function fixBottomOfficials(){
-    // Keep the repeated official names centered above the printed guide lines.
-    place(overlay.querySelector('[data-correction-role="bottom-crew-chief"]'),29.0,91.80,{size:'clamp(8px,.9vw,12px)'});
-    place(overlay.querySelector('[data-correction-role="bottom-umpire1"]'),20.0,94.65,{size:'clamp(8px,.9vw,12px)'});
-    place(overlay.querySelector('[data-correction-role="bottom-umpire2"]'),39.5,94.65,{size:'clamp(8px,.9vw,12px)'});
+  function fixBottomOfficials(s){
+    const g=s?.game||{};
+    correctionText('bottom-crew-chief',g.crewChief||'',29.0,91.80);
+    correctionText('bottom-umpire1',g.umpire1||'',20.0,94.65);
+    correctionText('bottom-umpire2',g.umpire2||'',39.5,94.65);
   }
 
   function fixFinalScore(){
-    // Existing correction currently moves these to about 79.7/92.2, 88.15.
-    // Re-center them in the actual A/B score boxes and lift them vertically.
     const candidates=all().filter(el=>{
       const x=parseFloat(el.style.left)||0;
       const y=parseFloat(el.style.top)||0;
@@ -80,7 +84,7 @@
     if(s){
       fixTopOfficials(s);
       fixCoaches(s);
-      fixBottomOfficials();
+      fixBottomOfficials(s);
       fixFinalScore();
     }
     if(observer) observer.observe(overlay,{childList:true,subtree:true,characterData:true});
@@ -88,7 +92,7 @@
   function schedule(){
     if(scheduled) return;
     scheduled=true;
-    requestAnimationFrame(()=>requestAnimationFrame(apply));
+    requestAnimationFrame(apply);
   }
   observer=new MutationObserver(schedule);
   observer.observe(overlay,{childList:true,subtree:true,characterData:true});
