@@ -15,6 +15,35 @@
   if (hint) hint.textContent = '1回タップで開始・もう一度で停止';
   button.setAttribute('aria-pressed', 'false');
 
+  // iPad / iPhone では既存の footer 内 status が画面幅によって非表示に
+  // なるため、音声入力中だけ必ず見えるリアルタイム文字起こしパネルを作る。
+  const livePanel = document.createElement('div');
+  livePanel.id = 'voiceLivePanel';
+  livePanel.setAttribute('role', 'status');
+  livePanel.setAttribute('aria-live', 'polite');
+  livePanel.setAttribute('aria-atomic', 'false');
+  Object.assign(livePanel.style, {
+    position: 'fixed',
+    left: '50%',
+    bottom: 'calc(86px + env(safe-area-inset-bottom))',
+    transform: 'translateX(-50%)',
+    zIndex: '60',
+    width: 'calc(100% - 24px)',
+    maxWidth: '760px',
+    padding: '10px 14px',
+    border: '2px solid #e93f4e',
+    borderRadius: '12px',
+    background: 'rgba(255,255,255,.97)',
+    boxShadow: '0 10px 32px rgba(17,36,59,.24)',
+    color: '#11243b',
+    pointerEvents: 'none',
+    display: 'none'
+  });
+  livePanel.innerHTML = '<div id="voiceLiveState" style="font-size:12px;font-weight:900;color:#e93f4e"></div><div id="voiceLiveText" style="margin-top:4px;font-size:16px;font-weight:800;line-height:1.4;min-height:1.4em;overflow-wrap:anywhere"></div>';
+  document.body.appendChild(livePanel);
+  const liveState = document.getElementById('voiceLiveState');
+  const liveText = document.getElementById('voiceLiveText');
+
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -24,10 +53,36 @@
   let starting = false;
   let listening = false;
   let gotSpeech = false;
+  let gotFinalResult = false;
   let startTimer = null;
+  let hideTimer = null;
+  let lastExecutedFinal = '';
 
-  function setStatus(text) {
+  function showLivePanel() {
+    clearTimeout(hideTimer);
+    livePanel.style.display = 'block';
+  }
+
+  function hideLivePanelSoon(delay = 4500) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (!starting && !listening) livePanel.style.display = 'none';
+    }, delay);
+  }
+
+  function setStatus(text, showPanel = true) {
     status.textContent = text;
+    liveState.textContent = text;
+    if (showPanel) showLivePanel();
+  }
+
+  function setTranscript(text, mode = 'live') {
+    if (!text) {
+      liveText.textContent = '';
+      return;
+    }
+    liveText.textContent = `${mode === 'final' ? '認識結果' : '文字起こし中'}：${text}`;
+    showLivePanel();
   }
 
   function setListening(on) {
@@ -181,39 +236,84 @@
     if (!SR) return null;
     const r = new SR();
     r.lang = 'ja-JP';
-    r.interimResults = false;
+    // interimResults を有効にして、発話途中から文字起こしを画面へ出す。
+    // iPad Safari では continuous=true が不安定なため、1回の発話を確実に
+    // 完了させる方式を維持する。
+    r.interimResults = true;
     r.continuous = false;
     r.maxAlternatives = 1;
 
     r.onstart = () => {
       starting = false;
       gotSpeech = false;
+      gotFinalResult = false;
+      lastExecutedFinal = '';
       setListening(true);
-      setStatus('聞き取り中… 話してください');
+      setTranscript('');
+      setStatus('🔴 音声入力開始・話してください');
       clearTimeout(startTimer);
     };
-    r.onaudiostart = () => setStatus('マイク入力中… 話してください');
+    r.onaudiostart = () => setStatus('🎤 マイクON・音声を聞いています');
+    r.onsoundstart = () => setStatus('🎧 音を検出しました');
     r.onspeechstart = () => {
       gotSpeech = true;
-      setStatus('音声を認識中…');
+      setStatus('📝 リアルタイム文字起こし中…');
     };
     r.onresult = e => {
-      const text = e.results?.[0]?.[0]?.transcript || '';
-      if (text) executeTranscript(text);
+      let interimText = '';
+      let finalText = '';
+
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const result = e.results[i];
+        const text = result?.[0]?.transcript || '';
+        if (result.isFinal) finalText += text;
+        else interimText += text;
+      }
+
+      interimText = interimText.trim();
+      finalText = finalText.trim();
+
+      if (interimText) {
+        gotSpeech = true;
+        setStatus('📝 リアルタイム文字起こし中…');
+        setTranscript(interimText, 'live');
+      }
+
+      // コマンド実行は「確定結果」だけで行う。途中結果では得点やファウルを
+      // 実行しないため、二重入力を防げる。
+      if (finalText) {
+        gotSpeech = true;
+        gotFinalResult = true;
+        setTranscript(finalText, 'final');
+        if (finalText !== lastExecutedFinal) {
+          lastExecutedFinal = finalText;
+          executeTranscript(finalText);
+        }
+      }
     };
-    r.onnomatch = () => setStatus('聞き取れませんでした。もう一度タップしてください');
+    r.onspeechend = () => {
+      if (!gotFinalResult) setStatus('⏳ 音声を文字に変換しています…');
+    };
+    r.onnomatch = () => {
+      setStatus('聞き取れませんでした。もう一度タップしてください');
+      hideLivePanelSoon();
+    };
     r.onerror = e => {
       starting = false;
       setListening(false);
       setStatus(friendlyError(e.error));
+      hideLivePanelSoon();
     };
     r.onend = () => {
       starting = false;
       setListening(false);
       clearTimeout(startTimer);
-      if (!gotSpeech && /聞き取り中|マイク入力中|音声を認識中/.test(status.textContent)) {
+      if (!gotSpeech && /音声入力開始|マイクON|音を検出|文字起こし/.test(liveState.textContent)) {
         setStatus('音声が入力されませんでした。もう一度タップして話してください');
+      } else if (gotSpeech && !gotFinalResult) {
+        setStatus('音声は検出しましたが文字起こしを確定できませんでした。もう一度お試しください');
       }
+      hideLivePanelSoon();
     };
     return r;
   }
@@ -230,10 +330,12 @@
     if (starting || listening) return;
 
     starting = true;
+    setTranscript('');
     setStatus('マイクを準備中…');
     const micOK = await primeMicrophone();
     if (!micOK) {
       starting = false;
+      hideLivePanelSoon();
       return;
     }
 
@@ -251,12 +353,14 @@
           setListening(false);
           setStatus('音声認識が開始できません。Safariで開き、Siriとマイクの許可を確認してください');
           try { recognition.abort(); } catch {}
+          hideLivePanelSoon();
         }
       }, 5000);
     } catch (err) {
       starting = false;
       setListening(false);
       setStatus(`音声入力を開始できません: ${err?.name || 'unknown'}`);
+      hideLivePanelSoon();
     }
   }
 
@@ -268,6 +372,7 @@
     }
     setListening(false);
     setStatus('停止しました');
+    hideLivePanelSoon(1800);
   }
 
   button.addEventListener('click', e => {
@@ -282,10 +387,10 @@
   button.addEventListener('pointerdown', e => e.preventDefault());
 
   if (!SR) {
-    setStatus('音声入力はSafariなど対応ブラウザで使用してください');
+    setStatus('音声入力はSafariなど対応ブラウザで使用してください', false);
   } else if (isIOSNonSafari) {
-    setStatus('iPadではSafariで開くと音声入力を利用できます');
+    setStatus('iPadではSafariで開くと音声入力を利用できます', false);
   } else {
-    setStatus('音声入力：1回タップして話してください');
+    setStatus('音声入力：1回タップして話してください', false);
   }
 })();
