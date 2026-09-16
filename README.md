@@ -1,27 +1,29 @@
 # COURTSIDE SCOREBOOK
 
-Browser-only basketball scorebook for iPad and desktop. The app records scoring, fouls, timeouts and common box-score stats, keeps a play-by-play event log, supports undo/redo and local autosave, and overlays game data on the supplied official scoresheet template for A4 printing/PDF.
+iPad・PCのブラウザだけで利用できるバスケットボール用スコア入力アプリです。得点、ファウル、タイムアウト、主要スタッツを記録し、プレイ・バイ・プレイ、UNDO/REDO、LocalStorage自動保存、A4印刷/PDFに対応します。
 
-## Main features
-- Pre-game competition, crew, team, coach and player registration
-- 1/2/3-point makes and misses
-- Personal / technical / unsportsmanlike / disqualifying fouls and free-throw indication
+## 主な機能
+- 試合前の大会情報、審判、チーム、コーチ、選手登録
+- 1点・2点・3点の成功／失敗
+- パーソナル／テクニカル／アンスポーツマンライク／ディスクォリファイングファウルとフリースロー本数
 - OREB / DREB / AST / TOV / STL / BLK
-- Quarter scores, personal fouls, team fouls, running score
-- Undo / redo and play-by-play
-- Push-to-talk Japanese voice input when the browser supports Web Speech API
-- LocalStorage autosave
-- A4 print / Save as PDF
-- GitHub Pages deployment
+- クォーター別得点、個人ファウル、チームファウル、ランニングスコア
+- UNDO / REDO、プレイ・バイ・プレイ
+- 対応ブラウザでの日本語Push-to-Talk音声入力
+- LocalStorageによる自動保存
+- A4印刷 / PDF保存
+- GitHub Pages公開用ワークフロー
 
-## Voice examples
+## 音声入力例
 - 「白 7番 2点」
 - 「黒 5番 3点」
 - 「白 8番 ファウル」
 - 「黒 12番 ディフェンスリバウンド」
 - 「白 タイムアウト」
 
-Voice recognition is deliberately push-to-talk so surrounding gym audio is not continuously interpreted. When Web Speech API is unavailable, use the touch controls.
+周囲の体育館音声を常時拾わないよう、音声認識はPush-to-Talk方式です。Web Speech APIに対応しないブラウザではタッチ入力を使用します。
 
-## Scoresheet template
-`assets/official-scoresheet-template.jpg` is a web-optimized copy of the scoresheet image supplied for this project. The app places team/player/foul/running-score/final-score data over the image and prints it as one A4 portrait page.
+## スコアシートテンプレート
+現在のブラウザ版では `assets/official-scoresheet-template.svg` を使用しています。これはユーザー提供の公式スコアシートの項目構成（Team A/B、選手欄、ファウル、ランニングスコア、各Q得点、最終スコア等）をブラウザで扱える形に再構成したテンプレートです。
+
+元のJPGそのものを背景にしたい場合は、後から `assets/official-scoresheet-template.jpg` をGitHubへアップロードし、`index.html` の画像参照先をJPGへ変更できます。ゲームデータや集計ロジックはそのまま利用できます。
