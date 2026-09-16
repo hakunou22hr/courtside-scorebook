@@ -1,5 +1,5 @@
-const CACHE='courtside-v20';
-const ASSETS=['./','index.html','styles.css','app.js','voice-v2.js','sheet-static.js','sheet-corrections.js','sheet-precision-fix.js','scoresheet-field-map.json','manifest.webmanifest','assets/スコアシート.jpg'];
+const CACHE='courtside-v21';
+const ASSETS=['./','index.html','styles.css','app.js','voice-v2.js?v=21','sheet-static.js','sheet-corrections.js','sheet-precision-fix.js','scoresheet-field-map.json','manifest.webmanifest','assets/スコアシート.jpg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -26,7 +26,6 @@ self.addEventListener('fetch', event => {
   const isNavigation = request.mode === 'navigate';
   const isLiveCode = sameOrigin && /\.(?:html|js|css)$/.test(url.pathname);
 
-  // オンライン時は必ず最新の画面・JS・CSSを取得する。失敗時のみキャッシュへ戻る。
   if (isNavigation || isLiveCode) {
     event.respondWith(
       fetch(request)
@@ -42,7 +41,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 画像などはオフライン性を優先。
   event.respondWith(
     caches.match(request).then(hit => hit || fetch(request).then(response => {
       if (sameOrigin && response && response.ok) {
