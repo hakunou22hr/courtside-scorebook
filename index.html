@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0e2a4e" />
+  <title>COURTSIDE SCOREBOOK</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand"><span class="brand-ball">◒</span><div><b>COURTSIDE</b><small>SCOREBOOK</small></div></div>
+    <nav class="tabs" aria-label="メインメニュー">
+      <button class="tab is-active" data-view="input">▣ 入力</button>
+      <button class="tab" data-view="sheet">▤ スコアシート</button>
+      <button class="tab" data-view="stats">▥ スタッツ</button>
+      <button class="tab" data-view="pbp">↶ プレイ・バイ・プレイ</button>
+    </nav>
+    <div class="save-indicator" id="saveIndicator">✓ 保存済み</div>
+  </header>
+
+  <section class="score-ribbon" aria-label="試合スコア">
+    <div class="score-team team-a"><span class="eyebrow">TEAM A</span><strong id="ribbonAName">TEAM A</strong><div><span id="ribbonAScore">0</span><small id="ribbonAQ">Q1 0　Q2 0　Q3 0　Q4 0</small></div><em id="ribbonAFouls">チームファウル 0</em></div>
+    <div class="clock-box"><span id="quarterLabel">第1クォーター</span><strong id="clockText">06:00</strong><button id="clockToggle" class="clock-toggle">▶ START</button></div>
+    <div class="score-team team-b"><span class="eyebrow">TEAM B</span><strong id="ribbonBName">TEAM B</strong><div><span id="ribbonBScore">0</span><small id="ribbonBQ">Q1 0　Q2 0　Q3 0　Q4 0</small></div><em id="ribbonBFouls">チームファウル 0</em></div>
+  </section>
+
+  <main>
+    <section id="view-input" class="view is-active">
+      <details class="setup-panel" id="setupPanel" open>
+        <summary>試合前入力・大会情報・選手登録</summary>
+        <div class="setup-grid">
+          <div class="card game-card">
+            <h2>試合情報</h2>
+            <div class="form-grid">
+              <label>大会名<input data-game="competition" placeholder="大会名"></label>
+              <label>Game No.<input data-game="gameNo" placeholder="1"></label>
+              <label>日付<input data-game="date" type="date"></label>
+              <label>開始時刻<input data-game="time" type="time"></label>
+              <label>会場<input data-game="place" placeholder="体育館"></label>
+              <label>1Q時間<select data-game="periodMinutes"><option value="6">6分</option><option value="8">8分</option><option value="10">10分</option></select></label>
+              <label>クルーチーフ<input data-game="crewChief"></label>
+              <label>1st アンパイア<input data-game="umpire1"></label>
+              <label>2nd アンパイア<input data-game="umpire2"></label>
+            </div>
+            <div class="start-row"><button id="startGame" class="primary big">試合開始</button><button id="endGame" class="danger-outline big">試合終了</button></div>
+          </div>
+          <div class="card team-setup" id="setupA"></div>
+          <div class="card team-setup" id="setupB"></div>
+        </div>
+      </details>
+
+      <div class="live-grid">
+        <section class="card roster-card team-a-card"><header><div><span>TEAM A</span><h2 id="teamAHeading">TEAM A</h2></div><button data-add-player="A">＋ 選手追加</button></header><div id="rosterA" class="roster"></div></section>
+        <section class="card action-card">
+          <div class="selected-bar"><span>選択中</span><strong id="selectedPlayerLabel">選手を選択</strong></div>
+          <div class="score-actions">
+            <button data-action="ftm" class="score1">+1<small>FT 成功</small></button>
+            <button data-action="fg2m" class="score2">+2<small>2P 成功</small></button>
+            <button data-action="fg3m" class="score3">+3<small>3P 成功</small></button>
+          </div>
+          <div class="miss-actions"><button data-action="ftx">FT 失敗</button><button data-action="fg2x">2P 失敗</button><button data-action="fg3x">3P 失敗</button></div>
+          <div class="stat-actions"><button data-action="oreb">OREB<small>攻撃REB</small></button><button data-action="dreb">DREB<small>守備REB</small></button><button data-action="ast">AST<small>アシスト</small></button><button data-action="tov">TOV<small>TO</small></button><button data-action="stl">STL<small>スティール</small></button><button data-action="blk">BLK<small>ブロック</small></button></div>
+          <button id="openFoul" class="foul-btn">FOUL <small>ファウルを記録</small></button>
+          <div class="game-actions"><button id="timeoutBtn">TIME OUT</button><button id="quarterEnd" class="primary">クォーター終了 ›</button></div>
+        </section>
+        <section class="card roster-card team-b-card"><header><div><span>TEAM B</span><h2 id="teamBHeading">TEAM B</h2></div><button data-add-player="B">＋ 選手追加</button></header><div id="rosterB" class="roster"></div></section>
+      </div>
+    </section>
+
+    <section id="view-sheet" class="view">
+      <div class="section-title"><div><span class="eyebrow red">GAME CENTER</span><h1>公式スコアシート確認</h1><p>提供されたJPGテンプレートへリアルタイム反映</p></div><div class="button-row"><button id="printSheet">🖨 A4 PDF / 印刷</button></div></div>
+      <div class="sheet-toolbar"><button data-zoom="1">全体表示</button><button data-zoom="1.35">拡大</button><button id="refreshSheet">↻ 再描画</button></div>
+      <div class="sheet-stage" id="sheetStage"><div id="sheetPrintArea" class="sheet-page"><img src="assets/official-scoresheet-template.jpg" alt="公式スコアシートテンプレート" id="sheetImage"><div id="sheetOverlay" class="sheet-overlay"></div></div></div>
+    </section>
+
+    <section id="view-stats" class="view">
+      <div class="section-title"><div><span class="eyebrow red">LIVE STATS</span><h1>スタッツ</h1><p>得点・シュート・リバウンド・アシスト・ターンオーバー等を自動集計</p></div></div>
+      <div id="statsTables"></div>
+    </section>
+
+    <section id="view-pbp" class="view">
+      <div class="section-title"><div><span class="eyebrow red">EVENT LOG</span><h1>プレイ・バイ・プレイ</h1><p>全入力を時系列で保存。UNDO / REDOに対応。</p></div><button id="clearGame" class="danger-outline">全データ初期化</button></div>
+      <div id="pbpList" class="pbp-list"></div>
+    </section>
+  </main>
+
+  <footer class="bottom-bar">
+    <button id="undoBtn">↶ UNDO</button><button id="redoBtn">↷ REDO</button>
+    <button id="voiceBtn" class="voice-btn">🎙 <b>音声入力</b><small>押している間だけ聞き取る</small></button>
+    <div id="voiceStatus" class="voice-status">待機中</div>
+    <button id="historyShortcut">履歴 <span id="historyCount">0</span></button><button id="printShortcut">🖨 印刷 / PDF</button>
+  </footer>
+
+  <dialog id="foulDialog">
+    <form method="dialog" class="modal-card">
+      <h2>ファウル入力</h2><p id="foulPlayer">選手</p>
+      <fieldset><legend>ファウル種別</legend><div class="choice-grid"><label><input type="radio" name="foulType" value="P" checked> P パーソナル</label><label><input type="radio" name="foulType" value="T"> T テクニカル</label><label><input type="radio" name="foulType" value="U"> U アンスポーツマンライク</label><label><input type="radio" name="foulType" value="D"> D ディスクォリファイング</label></div></fieldset>
+      <label>フリースロー<select id="foulFt"><option value="0">なし</option><option value="1">1本</option><option value="2">2本</option><option value="3">3本</option></select></label>
+      <div class="button-row"><button value="cancel">キャンセル</button><button id="saveFoul" value="default" class="foul-btn">記録</button></div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
