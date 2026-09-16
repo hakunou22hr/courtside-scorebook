@@ -5,6 +5,8 @@
 
   const RED='#d51f32';
   const BLACK='#111111';
+  const QUARTER_SCORE_TOPS=[73.4,76.4,79.4,82.4];
+  const QUARTER_SCORE_RAISE=0.55;
   let observer=null;
   let scheduled=false;
 
@@ -28,6 +30,22 @@
     // Raise the date slightly so it sits cleanly above the printed underline.
     dateEl.style.top='8.72%';
     dateEl.style.transform='translate(-50%,-50%)';
+  }
+
+  function adjustQuarterScores(){
+    // app.js places Q1-Q4 scores at x=74.5/89.2 and y=73.4,76.4,79.4,82.4.
+    // On the uploaded JPG those centers sit on the printed underline, so lift
+    // only these eight values while leaving the final score boxes untouched.
+    [...overlay.querySelectorAll('.ov')].forEach(el=>{
+      const x=parseFloat(el.style.left)||0;
+      const y=parseFloat(el.style.top)||0;
+      const isScoreColumn=Math.abs(x-74.5)<0.25||Math.abs(x-89.2)<0.25;
+      if(!isScoreColumn) return;
+      const row=QUARTER_SCORE_TOPS.find(v=>Math.abs(y-v)<0.2);
+      if(row===undefined) return;
+      el.style.top=`${row-QUARTER_SCORE_RAISE}%`;
+      el.style.transform='translate(-50%,-50%)';
+    });
   }
 
   function collectFouls(state){
@@ -94,6 +112,7 @@
     const state=loadState();
     if(state){
       adjustDate(state);
+      adjustQuarterScores();
       adjustFouls(state);
     }
     if(observer) observer.observe(overlay,{childList:true,subtree:true,characterData:true});
