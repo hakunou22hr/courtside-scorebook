@@ -7,58 +7,62 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    #view-input{max-width:1780px}
-    #view-input .live-grid{grid-template-columns:minmax(250px,1fr) 350px minmax(250px,1fr) 250px;align-items:stretch}
-    .running-score-card{display:flex;flex-direction:column;min-width:0;overflow:hidden;max-height:610px}
-    .running-score-head{padding:12px 12px 9px;border-bottom:1px solid #d7e0ea;background:#f8fafc;position:sticky;top:0;z-index:3}
+    #view-input{max-width:1860px}
+    #view-input .live-grid{grid-template-columns:minmax(270px,1fr) 350px minmax(270px,1fr) 300px;gap:14px;align-items:stretch}
+    .running-score-card{display:flex;flex-direction:column;min-width:280px;overflow:hidden;max-height:610px}
+    .running-score-head{padding:12px 14px 10px;border-bottom:1px solid #d7e0ea;background:#f8fafc;position:sticky;top:0;z-index:3}
     .running-score-head .eyebrow{color:#6f7f91}
-    .running-score-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+    .running-score-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px}
     .running-score-title h2{font-size:17px;margin:0;color:#11243b}
     .running-score-current{font-size:22px;font-weight:900;color:#0d2a4e;white-space:nowrap}
     .running-score-latest{font-size:10px;font-weight:800;color:#65778b;margin-top:4px;min-height:1.4em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
     .running-score-team-head{display:grid;grid-template-columns:1fr 1fr;background:#0d2a4e;color:#fff;font-size:11px;font-weight:900;text-align:center;position:sticky;top:73px;z-index:3}
-    .running-score-team-head span{padding:5px 2px;border-right:1px solid rgba(255,255,255,.28)}
+    .running-score-team-head span{padding:6px 2px;border-right:2px solid rgba(255,255,255,.32)}
     .running-score-team-head span:last-child{border-right:0}
-    .running-score-ab-head{display:grid;grid-template-columns:34px 42px 42px 34px;background:#fff;color:#0d2a4e;font-size:11px;font-weight:900;text-align:center;position:sticky;top:96px;z-index:3;border-bottom:1px solid #9aa9b8}
-    .running-score-ab-head span{padding:3px 1px;border-right:1px solid #cfd8e2}
+    .running-score-ab-head{display:grid;grid-template-columns:21% 29% 29% 21%;width:100%;background:#fff;color:#0d2a4e;font-size:11px;font-weight:900;text-align:center;position:sticky;top:97px;z-index:3;border-bottom:1px solid #9aa9b8}
+    .running-score-ab-head span{padding:4px 1px;border-right:1px solid #cfd8e2;box-sizing:border-box}
+    .running-score-ab-head span:nth-child(2){border-right:2px solid #8d9bab}
     .running-score-ab-head span:last-child{border-right:0}
 
     .running-score-scroll{overflow:auto;flex:1;scroll-behavior:smooth;background:#fff}
-    .running-score-row{display:grid;grid-template-columns:34px 42px 42px 34px;min-height:27px;border-bottom:1px solid #dfe6ed;position:relative;font-size:12px}
+    .running-score-row{display:grid;grid-template-columns:21% 29% 29% 21%;width:100%;min-height:27px;border-bottom:1px solid #dfe6ed;position:relative;font-size:12px;box-sizing:border-box}
     .running-score-row.latest{background:#fff8d9}
-    .running-score-scorer,.running-score-total{display:flex;align-items:center;justify-content:center;position:relative;min-width:0}
+    .running-score-scorer,.running-score-total{display:flex;align-items:center;justify-content:center;position:relative;min-width:0;box-sizing:border-box}
     .running-score-scorer,.running-score-total{border-right:1px solid #cfd8e2}
+    .running-score-row > :nth-child(2){border-right:2px solid #8d9bab}
     .running-score-row > :last-child{border-right:0}
     .running-score-total{font-weight:900;color:#26384d;background:rgba(248,250,252,.72);font-variant-numeric:tabular-nums}
     .running-score-scorer{font-weight:900;background:#fff}
 
-    .running-score-scorer .player-mark{display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:21px;height:20px;font-weight:900;line-height:1}
+    .running-score-scorer .player-mark{display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:24px;height:20px;font-weight:900;line-height:1}
     .running-score-scorer .player-mark.q-odd{color:#d51f32}
     .running-score-scorer .player-mark.q-even{color:#111}
     .running-score-scorer .player-mark.three .player-number{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1.7px solid currentColor;border-radius:50%}
     .running-score-scorer .ft-dot{font-size:10px;line-height:1;margin-left:1px}
 
-    .running-score-total.scored::after{content:'';position:absolute;left:9px;right:9px;top:50%;height:1.8px;background:currentColor;transform:rotate(-48deg);transform-origin:center;border-radius:2px;pointer-events:none}
+    .running-score-total.scored::after{content:'';position:absolute;left:27%;right:27%;top:50%;height:1.8px;background:currentColor;transform:rotate(-48deg);transform-origin:center;border-radius:2px;pointer-events:none}
     .running-score-total.scored.q-odd{color:#d51f32}
     .running-score-total.scored.q-even{color:#111}
     .running-score-total.scored .score-number{color:#26384d}
     .running-score-row.latest .running-score-total,.running-score-row.latest .running-score-scorer{background:#fff8d9}
     .running-score-empty{padding:18px 8px;color:#6f7f91;font-size:11px;text-align:center}
 
-    @media(max-width:1350px){
-      #view-input .live-grid{grid-template-columns:minmax(225px,1fr) 320px minmax(225px,1fr) 220px}
-      .running-score-title h2{font-size:15px}.running-score-current{font-size:19px}
-      .running-score-row,.running-score-ab-head{grid-template-columns:31px 38px 38px 31px}
-      .running-score-total.scored::after{left:8px;right:8px}
+    @media(max-width:1500px){
+      #view-input .live-grid{grid-template-columns:minmax(240px,1fr) 330px minmax(240px,1fr) 270px;gap:12px}
+      .running-score-card{min-width:250px}
     }
-    @media(max-width:1100px){
+    @media(max-width:1250px){
       #view-input .live-grid{grid-template-columns:1fr 330px 1fr}
-      .running-score-card{grid-column:1/-1;max-height:430px}
+      .running-score-card{grid-column:1/-1;max-height:430px;min-width:0}
+      .running-score-ab-head,.running-score-row{grid-template-columns:16% 34% 34% 16%}
+      .running-score-total.scored::after{left:34%;right:34%}
     }
     @media(max-width:820px){
       #view-input .live-grid{grid-template-columns:1fr}
       .running-score-card{grid-column:auto;max-height:420px;order:4}
+      .running-score-ab-head,.running-score-row{grid-template-columns:18% 32% 32% 18%}
+      .running-score-total.scored::after{left:31%;right:31%}
     }
   `;
   document.head.appendChild(style);
