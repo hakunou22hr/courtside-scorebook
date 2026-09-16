@@ -79,11 +79,12 @@
     <section id="view-pbp" class="view"><div class="section-title"><div><span class="eyebrow red">EVENT LOG</span><h1>プレイ・バイ・プレイ</h1><p>全入力を時系列で保存。UNDO / REDOに対応。</p></div><button id="clearGame" class="danger-outline">全データ初期化</button></div><div id="pbpList" class="pbp-list"></div></section>
   </main>
 
-  <footer class="bottom-bar"><button id="undoBtn">↶ UNDO</button><button id="redoBtn">↷ REDO</button><button id="voiceBtn" class="voice-btn">🎙 <b>音声入力</b><small>押している間だけ聞き取る</small></button><div id="voiceStatus" class="voice-status">待機中</div><button id="historyShortcut">履歴 <span id="historyCount">0</span></button><button id="printShortcut">🖨 印刷 / PDF</button></footer>
+  <footer class="bottom-bar"><button id="undoBtn">↶ UNDO</button><button id="redoBtn">↷ REDO</button><button id="voiceBtn" class="voice-btn">🎙 <b>音声入力</b><small>1回タップで開始</small></button><div id="voiceStatus" class="voice-status">待機中</div><button id="historyShortcut">履歴 <span id="historyCount">0</span></button><button id="printShortcut">🖨 印刷 / PDF</button></footer>
 
   <dialog id="foulDialog"><form method="dialog" class="modal-card"><h2>ファウル入力</h2><p id="foulPlayer">選手</p><fieldset><legend>ファウル種別</legend><div class="choice-grid"><label><input type="radio" name="foulType" value="P" checked> P パーソナル</label><label><input type="radio" name="foulType" value="T"> T テクニカル</label><label><input type="radio" name="foulType" value="U"> U アンスポーツマンライク</label><label><input type="radio" name="foulType" value="D"> D ディスクォリファイング</label></div></fieldset><label>フリースロー<select id="foulFt"><option value="0">なし</option><option value="1">1本</option><option value="2">2本</option><option value="3">3本</option></select></label><div class="button-row"><button value="cancel">キャンセル</button><button id="saveFoul" value="default" class="foul-btn">記録</button></div></form></dialog>
 
   <script src="app.js"></script>
+  <script src="voice-ipad-fix.js"></script>
   <script src="sheet-static.js"></script>
   <script src="sheet-corrections.js"></script>
   <script src="sheet-precision-fix.js"></script>
