@@ -72,10 +72,9 @@
 
   function normalize(value) {
     return String(value || '')
-      .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .normalize('NFKC')
       .replace(/[、。，．,.!！?？・\s]/g, '')
       .replace(/ポイント/g, '点')
-      // Safariは「2点」を「二テン」「2テン」のように返すことがある。
       .replace(/(?:1|一|いち|いっ)(?:点|てん|テン)/g, '1点')
       .replace(/(?:2|二|に)(?:点|てん|テン)/g, '2点')
       .replace(/(?:3|三|さん)(?:点|てん|テン)/g, '3点')
@@ -116,6 +115,9 @@
     }
   }
 
+  const teamPrefix = /^(?:白|しろ|シロ|青|あお|アオ|黒|くろ|クロ|赤|あか|アカ|チームA|チームB|TEAMA|TEAMB)/i;
+  const numberToken = '(?:\\d{1,2}|[〇零一二三四五六七八九十]{1,4}|(?:じゅう)?(?:れい|ぜろ|いち|に|さん|よん|し|ご|ろく|なな|しち|はち|きゅう|く))';
+
   function extractTeam(s) {
     if (/白|しろ|シロ|チームA|TEAMA/i.test(s)) return 'A';
     if (/青|あお|アオ|チームB|TEAMB/i.test(s)) return 'B';
@@ -124,7 +126,14 @@
   }
 
   function extractPlayerNumber(s) {
-    const m = s.match(/(\d{1,2}|[〇零一二三四五六七八九十]{1,4}|[ぁ-ん]{1,10})(?:番|ばん)/);
+    // まずチーム名を外して、先頭の「4番 / 四番 / よんばん」を確実に拾う。
+    const body = String(s || '').replace(teamPrefix, '').replace(/^第/, '');
+    let m = body.match(new RegExp(`^(${numberToken})(?:番|ばん|バン)`));
+    if (!m) m = String(s || '').match(new RegExp(`(${numberToken})(?:番|ばん|バン)`));
+    if (m) return japaneseNumber(m[1]);
+
+    // Safariが「番」を落とす場合のみ、チーム直後〜プレー語直前の数字を選手番号として補完。
+    m = body.match(new RegExp(`^(${numberToken})(?=(?:1点|2点|3点|フリースロー|ターンオーバー|オフェンスリバウンド|ディフェンスリバウンド|アシスト|スティール|スチール|ブロック|TOV|OREB|DREB|AST|STL|BLK))`, 'i'));
     return m ? japaneseNumber(m[1]) : null;
   }
 
@@ -162,9 +171,9 @@
   function commandScore(parsed, confidence = 0) {
     let score = confidence || 0;
     if (parsed.team) score += 4;
-    if (parsed.number != null) score += 4;
-    if (parsed.action) score += 6;
-    if (parsed.complete) score += 10;
+    if (parsed.number != null) score += 6;
+    if (parsed.action) score += 8;
+    if (parsed.complete) score += 20;
     return score;
   }
 
@@ -213,16 +222,21 @@
     return true;
   }
 
+  function actionLabel(action) {
+    return ({ftm:'FT成功',ftx:'FT失敗',fg2m:'2点',fg2x:'2P失敗',fg3m:'3点',fg3x:'3P失敗',tov:'ターンオーバー',oreb:'オフェンスリバウンド',dreb:'ディフェンスリバウンド',ast:'アシスト',stl:'スティール',blk:'ブロック',foul:'ファウル'})[action] || action;
+  }
+
   function executeParsed(parsed) {
     const { raw, team, number, action, ft } = parsed;
     if (!team) return feedback(`認識: ${raw} ／ 「白」または「青」を最初に話してください`), false;
     if (number == null) return feedback(`認識: ${raw} ／ 選手番号を読み取れません`), false;
     if (!action) return feedback(`認識: ${raw} ／ コマンドを特定できません`), false;
-    if (!selectPlayer(team, number)) return feedback(`認識: ${raw} ／ ${team === 'A' ? '白' : '青'} ${number}番が見つかりません`), false;
+    feedback(`解釈: ${team === 'A' ? '白' : '青'} ${number}番 ${actionLabel(action)}`);
+    if (!selectPlayer(team, number)) return feedback(`認識: ${raw} ／ ${team === 'A' ? '白' : '青'} ${number}番が登録選手に見つかりません`), false;
 
     if (action === 'foul') {
       if (recordFoul(ft)) {
-        feedback(`入力完了: ${raw}`);
+        feedback(`入力完了: ${team === 'A' ? '白' : '青'} ${number}番 ファウル${ft ? ` / FT${ft}本` : ''}`);
         return true;
       }
       feedback(`認識: ${raw} ／ ファウル入力を実行できません`);
@@ -230,7 +244,7 @@
     }
 
     if (!clickAction(action)) return feedback(`認識: ${raw} ／ 入力ボタンを実行できません`), false;
-    feedback(`入力完了: ${raw}`);
+    feedback(`入力完了: ${team === 'A' ? '白' : '青'} ${number}番 ${actionLabel(action)}`);
     return true;
   }
 
@@ -275,8 +289,8 @@
         if (!best) continue;
         if (result.isFinal) {
           if (!finalBest || best.score > finalBest.score) finalBest = best;
-        } else if (!interimBest || best.score > interimBest.score) {
-          interimBest = best;
+        } else {
+          if (!interimBest || best.score > interimBest.score) interimBest = best;
         }
       }
       if (interimBest?.text) {
@@ -316,11 +330,13 @@
       button.classList.remove('is-listening');
       button.setAttribute('aria-pressed', 'false');
       if (!gotFinal && lastInterim) {
+        const parsed = parseCommand(lastInterim);
         transcript(lastInterim, true);
-        executeParsed(parseCommand(lastInterim));
+        executeParsed(parsed);
       }
       hidePanel();
     };
+
     return r;
   }
 
