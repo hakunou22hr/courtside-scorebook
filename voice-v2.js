@@ -43,9 +43,8 @@
 
   const digitMap = {〇:0, 零:0, 一:1, 二:2, 三:3, 四:4, 五:5, 六:6, 七:7, 八:8, 九:9};
   const kanaDigit = {
-    'れい':0, 'ぜろ':0,
-    'いち':1, 'に':2, 'さん':3, 'よん':4, 'し':4, 'ご':5,
-    'ろく':6, 'なな':7, 'しち':7, 'はち':8, 'きゅう':9, 'く':9
+    'れい':0, 'ぜろ':0, 'いち':1, 'に':2, 'さん':3, 'よん':4, 'し':4,
+    'ご':5, 'ろく':6, 'なな':7, 'しち':7, 'はち':8, 'きゅう':9, 'く':9
   };
 
   function showPanel() {
@@ -76,9 +75,10 @@
       .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
       .replace(/[、。，．,.!！?？・\s]/g, '')
       .replace(/ポイント/g, '点')
-      .replace(/いってん|いちてん|一点|1てん|１てん/g, '1点')
-      .replace(/にてん|二点|2てん|２てん/g, '2点')
-      .replace(/さんてん|三点|3てん|３てん/g, '3点')
+      // Safariは「2点」を「二テン」「2テン」のように返すことがある。
+      .replace(/(?:1|一|いち|いっ)(?:点|てん|テン)/g, '1点')
+      .replace(/(?:2|二|に)(?:点|てん|テン)/g, '2点')
+      .replace(/(?:3|三|さん)(?:点|てん|テン)/g, '3点')
       .replace(/フリー・?スロー|フリースロウ|フリースロ/g, 'フリースロー')
       .replace(/ターン・?オーバー|ターンオーバ/g, 'ターンオーバー')
       .replace(/オフェンシブリバウンド|オフェンスリバン(?:ド)?/g, 'オフェンスリバウンド')
@@ -90,7 +90,6 @@
     const raw = String(token || '').toLowerCase();
     if (/^\d{1,2}$/.test(raw)) return Number(raw);
     if (raw === '十' || raw === 'じゅう') return 10;
-
     if (raw.includes('十')) {
       const [left, right] = raw.split('十');
       const tens = left === '' ? 1 : digitMap[left];
@@ -118,11 +117,8 @@
   }
 
   function extractTeam(s) {
-    // ユーザー指定: 白 = TEAM A、青 = TEAM B。
-    // iPadの音声認識で「しろ」「あお」とひらがなになる場合も許容する。
     if (/白|しろ|シロ|チームA|TEAMA/i.test(s)) return 'A';
     if (/青|あお|アオ|チームB|TEAMB/i.test(s)) return 'B';
-    // 従来呼称も残す。
     if (/黒|くろ|クロ|赤|あか|アカ/.test(s)) return 'B';
     return readState()?.selected?.team || null;
   }
@@ -133,14 +129,12 @@
   }
 
   function determineAction(s) {
-    // スタッツ系は得点より先に判定する。
     if (/ターンオーバー|TOV|TO$/i.test(s)) return 'tov';
     if (/オフェンスリバウンド|オフェンスREB|OREB/i.test(s)) return 'oreb';
     if (/ディフェンスリバウンド|ディフェンスREB|DREB/i.test(s)) return 'dreb';
     if (/アシスト|AST/i.test(s)) return 'ast';
     if (/スティール|スチール|STL/i.test(s)) return 'stl';
     if (/ブロック|ブロックショット|BLK/i.test(s)) return 'blk';
-
     if (/フリースロー失敗|FT失敗/i.test(s)) return 'ftx';
     if (/フリースロー(?:1点|成功)?|FT(?:1点|成功)/i.test(s)) return 'ftm';
     if (/3P失敗|3点失敗|スリー失敗/i.test(s)) return 'fg3x';
@@ -162,8 +156,7 @@
       const ftm = s.match(/(?:FT|フリースロー)([123一二三])(?:本|点)?/i);
       ft = ftm ? japaneseNumber(ftm[1]) || 0 : 0;
     }
-    const complete = !!team && number != null && !!action;
-    return { raw, s, team, number, action, ft, complete };
+    return { raw, s, team, number, action, ft, complete: !!team && number != null && !!action };
   }
 
   function commandScore(parsed, confidence = 0) {
@@ -222,22 +215,10 @@
 
   function executeParsed(parsed) {
     const { raw, team, number, action, ft } = parsed;
-    if (!team) {
-      feedback(`認識: ${raw} ／ 「白」または「青」を最初に話してください`);
-      return false;
-    }
-    if (number == null) {
-      feedback(`認識: ${raw} ／ 選手番号を読み取れません`);
-      return false;
-    }
-    if (!action) {
-      feedback(`認識: ${raw} ／ コマンドを特定できません`);
-      return false;
-    }
-    if (!selectPlayer(team, number)) {
-      feedback(`認識: ${raw} ／ ${team === 'A' ? '白' : '青'} ${number}番が見つかりません`);
-      return false;
-    }
+    if (!team) return feedback(`認識: ${raw} ／ 「白」または「青」を最初に話してください`), false;
+    if (number == null) return feedback(`認識: ${raw} ／ 選手番号を読み取れません`), false;
+    if (!action) return feedback(`認識: ${raw} ／ コマンドを特定できません`), false;
+    if (!selectPlayer(team, number)) return feedback(`認識: ${raw} ／ ${team === 'A' ? '白' : '青'} ${number}番が見つかりません`), false;
 
     if (action === 'foul') {
       if (recordFoul(ft)) {
@@ -248,16 +229,9 @@
       return false;
     }
 
-    if (!clickAction(action)) {
-      feedback(`認識: ${raw} ／ 入力ボタンを実行できません`);
-      return false;
-    }
+    if (!clickAction(action)) return feedback(`認識: ${raw} ／ 入力ボタンを実行できません`), false;
     feedback(`入力完了: ${raw}`);
     return true;
-  }
-
-  function execute(raw) {
-    return executeParsed(parseCommand(raw));
   }
 
   async function primeMic() {
@@ -277,7 +251,6 @@
     r.lang = 'ja-JP';
     r.interimResults = true;
     r.continuous = false;
-    // 1候補固定ではなく複数候補から、バスケットボールのコマンドとして最も成立する候補を選ぶ。
     r.maxAlternatives = 5;
     lastInterim = '';
 
@@ -296,23 +269,20 @@
     r.onresult = e => {
       let interimBest = null;
       let finalBest = null;
-
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const result = e.results[i];
         const best = chooseBestAlternative(result);
         if (!best) continue;
         if (result.isFinal) {
           if (!finalBest || best.score > finalBest.score) finalBest = best;
-        } else {
-          if (!interimBest || best.score > interimBest.score) interimBest = best;
+        } else if (!interimBest || best.score > interimBest.score) {
+          interimBest = best;
         }
       }
-
       if (interimBest?.text) {
         lastInterim = interimBest.text;
         transcript(lastInterim, false);
       }
-
       if (finalBest?.text) {
         gotFinal = true;
         transcript(finalBest.text, true);
@@ -345,15 +315,12 @@
       listening = false;
       button.classList.remove('is-listening');
       button.setAttribute('aria-pressed', 'false');
-      // Safariで最終結果にならず終了したときは、最後の途中結果を解析する。
       if (!gotFinal && lastInterim) {
-        const parsed = parseCommand(lastInterim);
         transcript(lastInterim, true);
-        executeParsed(parsed);
+        executeParsed(parseCommand(lastInterim));
       }
       hidePanel();
     };
-
     return r;
   }
 
