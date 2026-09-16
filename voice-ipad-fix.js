@@ -6,38 +6,24 @@
   const originalButton = document.getElementById('voiceBtn');
   if (!status || !originalButton) return;
 
-  // app.js installs press-and-hold pointer handlers. On iPad a quick tap can
-  // release before Safari's recognition service has actually started. Replace
-  // the node so those handlers are removed, then use a tap-to-start flow.
   const button = originalButton.cloneNode(true);
   originalButton.replaceWith(button);
   const hint = button.querySelector('small');
   if (hint) hint.textContent = '1回タップで開始・もう一度で停止';
   button.setAttribute('aria-pressed', 'false');
 
-  // iPad / iPhone では既存の footer 内 status が画面幅によって非表示に
-  // なるため、音声入力中だけ必ず見えるリアルタイム文字起こしパネルを作る。
   const livePanel = document.createElement('div');
   livePanel.id = 'voiceLivePanel';
   livePanel.setAttribute('role', 'status');
   livePanel.setAttribute('aria-live', 'polite');
   livePanel.setAttribute('aria-atomic', 'false');
   Object.assign(livePanel.style, {
-    position: 'fixed',
-    left: '50%',
-    bottom: 'calc(86px + env(safe-area-inset-bottom))',
-    transform: 'translateX(-50%)',
-    zIndex: '60',
-    width: 'calc(100% - 24px)',
-    maxWidth: '760px',
-    padding: '10px 14px',
-    border: '2px solid #e93f4e',
-    borderRadius: '12px',
-    background: 'rgba(255,255,255,.97)',
-    boxShadow: '0 10px 32px rgba(17,36,59,.24)',
-    color: '#11243b',
-    pointerEvents: 'none',
-    display: 'none'
+    position: 'fixed', left: '50%', bottom: 'calc(86px + env(safe-area-inset-bottom))',
+    transform: 'translateX(-50%)', zIndex: '60', width: 'calc(100% - 24px)',
+    maxWidth: '760px', padding: '10px 14px', border: '2px solid #e93f4e',
+    borderRadius: '12px', background: 'rgba(255,255,255,.97)',
+    boxShadow: '0 10px 32px rgba(17,36,59,.24)', color: '#11243b',
+    pointerEvents: 'none', display: 'none'
   });
   livePanel.innerHTML = '<div id="voiceLiveState" style="font-size:12px;font-weight:900;color:#e93f4e"></div><div id="voiceLiveText" style="margin-top:4px;font-size:16px;font-weight:800;line-height:1.4;min-height:1.4em;overflow-wrap:anywhere"></div>';
   document.body.appendChild(livePanel);
@@ -103,7 +89,31 @@
   function normalize(text) {
     return String(text || '')
       .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/[。、，,．.]/g, '')
       .replace(/\s+/g, '');
+  }
+
+  function japaneseNumberToInt(token) {
+    const value = String(token || '');
+    if (/^\d{1,2}$/.test(value)) return Number(value);
+    const digit = { '〇':0, '零':0, '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
+    if (value === '十') return 10;
+    if (value.includes('十')) {
+      const [left, right] = value.split('十');
+      const tens = left === '' ? 1 : digit[left];
+      const ones = right === '' ? 0 : digit[right];
+      if (tens != null && ones != null) return tens * 10 + ones;
+      return NaN;
+    }
+    if (value.length === 1 && digit[value] != null) return digit[value];
+    return NaN;
+  }
+
+  function extractPlayerNumber(s) {
+    const m = s.match(/(\d{1,2}|[〇零一二三四五六七八九十]{1,3})番/);
+    if (!m) return null;
+    const n = japaneseNumberToInt(m[1]);
+    return Number.isFinite(n) ? n : null;
   }
 
   function selectTeamPlayer(team, number) {
@@ -148,32 +158,34 @@
   function executeTranscript(raw) {
     const s = normalize(raw);
     let team = null;
-    if (/白|チームA|TEAMA/i.test(s)) team = 'A';
-    if (/黒|チームB|TEAMB/i.test(s)) team = 'B';
+    // 音声認識で「青四番」「青4番」と返るケースにも対応。
+    if (/青|白|チームA|TEAMA/i.test(s)) team = 'A';
+    if (/赤|黒|チームB|TEAMB/i.test(s)) team = 'B';
 
     const saved = loadState();
     if (!team) team = saved?.selected?.team || 'A';
 
-    const numberMatch = s.match(/(\d{1,2})番/);
-    if (numberMatch && !selectTeamPlayer(team, numberMatch[1])) {
-      setStatus(`認識: ${raw} ／ ${numberMatch[1]}番が見つかりません`);
+    const playerNumber = extractPlayerNumber(s);
+    const hasPlayerNumber = playerNumber !== null;
+    if (hasPlayerNumber && !selectTeamPlayer(team, playerNumber)) {
+      setStatus(`認識: ${raw} ／ ${playerNumber}番が見つかりません`);
       return;
     }
 
     if (/タイムアウト/.test(s)) {
-      if (!numberMatch) selectAnyFromTeam(team);
+      if (!hasPlayerNumber) selectAnyFromTeam(team);
       document.getElementById('timeoutBtn')?.click();
       setStatus(`入力完了: ${raw}`);
       return;
     }
 
     if (/ファウル/.test(s)) {
-      if (!numberMatch) {
+      if (!hasPlayerNumber) {
         setStatus(`認識: ${raw} ／ 選手番号も話してください`);
         return;
       }
-      const ftMatch = s.match(/(?:FT|フリースロー)([123])本?/i);
-      const ft = ftMatch ? Number(ftMatch[1]) : 0;
+      const ftMatch = s.match(/(?:FT|フリースロー)([123一二三])本?/i);
+      const ft = ftMatch ? japaneseNumberToInt(ftMatch[1]) : 0;
       if (recordVoiceFoul(ft)) setStatus(`入力完了: ${raw}`);
       return;
     }
@@ -185,17 +197,17 @@
       [/ターンオーバー|TOV|TO$/i, 'tov'],
       [/スティール|STL/i, 'stl'],
       [/ブロック|BLK/i, 'blk'],
-      [/2P失敗|2点失敗|ツー失敗/i, 'fg2x'],
-      [/3P失敗|3点失敗|スリー失敗/i, 'fg3x'],
+      [/2P失敗|2点失敗|二点失敗|ツー失敗/i, 'fg2x'],
+      [/3P失敗|3点失敗|三点失敗|スリー失敗/i, 'fg3x'],
       [/フリースロー失敗/i, 'ftx'],
-      [/3点|3P|スリー/i, 'fg3m'],
-      [/2点|2P|ツー/i, 'fg2m'],
-      [/1点|フリースロー成功|FT成功/i, 'ftm']
+      [/3点|3P|三点|スリー/i, 'fg3m'],
+      [/2点|2P|二点|ツー/i, 'fg2m'],
+      [/1点|一点|フリースロー成功|FT成功/i, 'ftm']
     ];
 
     for (const [re, action] of actions) {
       if (re.test(s)) {
-        if (!numberMatch) {
+        if (!hasPlayerNumber) {
           setStatus(`認識: ${raw} ／ 選手番号も話してください`);
           return;
         }
@@ -236,9 +248,6 @@
     if (!SR) return null;
     const r = new SR();
     r.lang = 'ja-JP';
-    // interimResults を有効にして、発話途中から文字起こしを画面へ出す。
-    // iPad Safari では continuous=true が不安定なため、1回の発話を確実に
-    // 完了させる方式を維持する。
     r.interimResults = true;
     r.continuous = false;
     r.maxAlternatives = 1;
@@ -262,25 +271,19 @@
     r.onresult = e => {
       let interimText = '';
       let finalText = '';
-
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const result = e.results[i];
         const text = result?.[0]?.transcript || '';
         if (result.isFinal) finalText += text;
         else interimText += text;
       }
-
       interimText = interimText.trim();
       finalText = finalText.trim();
-
       if (interimText) {
         gotSpeech = true;
         setStatus('📝 リアルタイム文字起こし中…');
         setTranscript(interimText, 'live');
       }
-
-      // コマンド実行は「確定結果」だけで行う。途中結果では得点やファウルを
-      // 実行しないため、二重入力を防げる。
       if (finalText) {
         gotSpeech = true;
         gotFinalResult = true;
@@ -382,8 +385,6 @@
     else startListening();
   });
 
-  // Prevent the synthetic pointer sequence from acting like the old
-  // press-and-hold control on touch devices.
   button.addEventListener('pointerdown', e => e.preventDefault());
 
   if (!SR) {
