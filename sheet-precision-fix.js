@@ -106,4 +106,13 @@
     s.dataset.historyEditor='1';
     document.body.appendChild(s);
   }
+
+  // Additional live-game rules: PF warning, timeout team chooser, timeout-minute
+  // recording and cumulative team-foul X marks on the official scoresheet.
+  if(!document.querySelector('script[data-game-rules-enhancements]')){
+    const s=document.createElement('script');
+    s.src='game-rules-enhancements.js?v=1';
+    s.dataset.gameRulesEnhancements='1';
+    document.body.appendChild(s);
+  }
 })();
