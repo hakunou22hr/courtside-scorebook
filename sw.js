@@ -1,5 +1,5 @@
-const CACHE='courtside-v37';
-const ASSETS=['./','index.html','styles.css','app.js','mobile-controls.js?v=2','voice-v2.js?v=21','mic-monitor.js?v=1','live-running-score.js?v=1','history-editor.js?v=1','game-rules-enhancements.js?v=3','sheet-static.js','sheet-corrections.js','sheet-precision-fix.js','scoresheet-field-map.json','manifest.webmanifest','assets/スコアシート.jpg'];
+const CACHE='courtside-v38';
+const ASSETS=['./','index.html','styles.css','app.js','mobile-controls.js?v=2','voice-v3.js?v=1','mic-monitor.js?v=1','live-running-score.js?v=1','history-editor.js?v=1','game-rules-enhancements.js?v=3','sheet-static.js','sheet-corrections.js','sheet-precision-fix.js','scoresheet-field-map.json','manifest.webmanifest','assets/スコアシート.jpg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
