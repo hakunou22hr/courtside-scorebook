@@ -61,10 +61,10 @@
       .mobile-player-chip strong{display:block;font-size:17px;line-height:1;font-weight:900}
       .mobile-player-chip small{display:block;margin-top:4px;font-size:8px;line-height:1.05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .mobile-player-chip.is-selected{
-        background:#17365f;
-        border-color:#17365f;
-        box-shadow:inset 0 0 0 2px #fff,0 0 0 2px #2f67b8;
-        color:#fff;
+        background:#17365f!important;
+        border-color:#17365f!important;
+        box-shadow:inset 0 0 0 2px #fff,0 0 0 3px #2f67b8!important;
+        color:#fff!important;
       }
       #view-input .selected-bar{grid-column:1/-1;padding:6px 8px;font-size:11px}
       #view-input .score-actions,
@@ -123,10 +123,9 @@
   function currentSelection(state){
     const dom=selectionFromDom();
     if(dom){activeSelection=dom;return dom;}
-    if(activeSelection) return activeSelection;
     const saved=stateSelection(state);
-    if(saved) activeSelection=saved;
-    return saved;
+    if(saved){activeSelection=saved;return saved;}
+    return activeSelection;
   }
 
   function setActiveChip(team,id){
@@ -136,6 +135,12 @@
       chip.classList.toggle('is-selected',selected);
       chip.setAttribute('aria-pressed',selected?'true':'false');
     });
+  }
+
+  function realRosterRow(team,id){
+    return [...document.querySelectorAll('.player-row[data-select-team][data-select-player]')].find(row=>
+      row.dataset.selectTeam===String(team)&&String(row.dataset.selectPlayer)===String(id)
+    )||null;
   }
 
   function teamRow(state,team,selected){
@@ -172,12 +177,31 @@
     picker.dataset.rendered=next;
   }
 
-  // Give immediate visual feedback on touch, before app.js finishes the normal
-  // selection/render cycle. The same data attributes are then handled by app.js.
+  // On iPhone, selecting a quick chip now clicks the corresponding REAL roster row.
+  // That guarantees app.js changes the actual selected player, not only the chip colour.
   picker.addEventListener('click',e=>{
     const chip=e.target.closest('.mobile-player-chip[data-select-team][data-select-player]');
     if(!chip) return;
-    setActiveChip(chip.dataset.selectTeam,chip.dataset.selectPlayer);
+    e.preventDefault();
+    e.stopPropagation();
+
+    const team=chip.dataset.selectTeam;
+    const id=chip.dataset.selectPlayer;
+    setActiveChip(team,id);
+
+    const row=realRosterRow(team,id);
+    if(row){
+      row.click();
+      requestAnimationFrame(()=>{
+        setActiveChip(team,id);
+        render();
+      });
+    }else{
+      // Keep visual feedback, but do not pretend a player was selected if the
+      // corresponding full-roster row is unavailable.
+      const label=document.getElementById('selectedPlayerLabel');
+      if(label) label.textContent=`TEAM ${team} 選手を再読込してください`;
+    }
   });
 
   // Keep the quick selector synchronized when selection changes through the
@@ -185,6 +209,6 @@
   document.addEventListener('click',()=>setTimeout(render,0));
   document.addEventListener('input',()=>setTimeout(render,0));
   window.addEventListener('storage',render);
-  setInterval(render,500);
+  setInterval(render,350);
   render();
 })();
