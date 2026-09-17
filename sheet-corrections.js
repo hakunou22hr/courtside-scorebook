@@ -52,9 +52,13 @@
       const y=parseFloat(el.style.top)||0;
       const isScoreColumn=Math.abs(x-74.5)<0.25||Math.abs(x-89.2)<0.25;
       if(!isScoreColumn) return;
-      const row=QUARTER_SCORE_TOPS.find(v=>Math.abs(y-v)<0.2);
-      if(row===undefined) return;
-      place(el,x,row-QUARTER_SCORE_RAISE,{fontWeight:'800'});
+      const rowIndex=QUARTER_SCORE_TOPS.findIndex(v=>Math.abs(y-v)<0.2);
+      if(rowIndex<0) return;
+      const quarter=rowIndex+1;
+      place(el,x,QUARTER_SCORE_TOPS[rowIndex]-QUARTER_SCORE_RAISE,{
+        fontWeight:'800',
+        color:inkForQuarter(quarter)
+      });
     });
   }
 
