@@ -72,8 +72,9 @@
       const y=parseFloat(el.style.top)||0;
       return y>86 && y<90 && x>72;
     }).sort((a,b)=>(parseFloat(a.style.left)||0)-(parseFloat(b.style.left)||0));
-    if(candidates[0]) place(candidates[0],77.0,87.10,{size:'clamp(18px,2vw,28px)',weight:'900',color:'#d51f32'});
-    if(candidates[1]) place(candidates[1],88.5,87.10,{size:'clamp(18px,2vw,28px)',weight:'900',color:'#d51f32'});
+    const finalColor='#111111';
+    if(candidates[0]) place(candidates[0],77.0,87.10,{size:'clamp(18px,2vw,28px)',weight:'900',color:finalColor});
+    if(candidates[1]) place(candidates[1],88.5,87.10,{size:'clamp(18px,2vw,28px)',weight:'900',color:finalColor});
   }
 
   function apply(){
