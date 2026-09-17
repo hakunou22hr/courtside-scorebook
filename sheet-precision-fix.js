@@ -98,8 +98,6 @@
   document.getElementById('refreshSheet')?.addEventListener('click',()=>setTimeout(schedule,0));
   schedule();
 
-  // History correction editor is kept separate from the core scoring code so
-  // past score/stat entries can be corrected safely without changing live input.
   if(!document.querySelector('script[data-history-editor]')){
     const s=document.createElement('script');
     s.src='history-editor.js?v=1';
@@ -107,11 +105,9 @@
     document.body.appendChild(s);
   }
 
-  // Additional live-game rules: PF warning, timeout team chooser, timeout-minute
-  // recording and cumulative team-foul X marks on the official scoresheet.
   if(!document.querySelector('script[data-game-rules-enhancements]')){
     const s=document.createElement('script');
-    s.src='game-rules-enhancements.js?v=1';
+    s.src='game-rules-enhancements.js?v=3';
     s.dataset.gameRulesEnhancements='1';
     document.body.appendChild(s);
   }
