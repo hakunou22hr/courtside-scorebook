@@ -55,10 +55,17 @@
         color:#17365f;
         text-align:center;
         touch-action:manipulation;
+        transition:background .08s ease,border-color .08s ease,box-shadow .08s ease,color .08s ease,transform .05s ease;
       }
+      .mobile-player-chip:active{transform:scale(.96)}
       .mobile-player-chip strong{display:block;font-size:17px;line-height:1;font-weight:900}
       .mobile-player-chip small{display:block;margin-top:4px;font-size:8px;line-height:1.05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .mobile-player-chip.is-selected{background:#e9f2ff;border-color:#2f67b8;box-shadow:inset 0 0 0 1px #2f67b8;color:#0d2a4e}
+      .mobile-player-chip.is-selected{
+        background:#17365f;
+        border-color:#17365f;
+        box-shadow:inset 0 0 0 2px #fff,0 0 0 2px #2f67b8;
+        color:#fff;
+      }
       #view-input .selected-bar{grid-column:1/-1;padding:6px 8px;font-size:11px}
       #view-input .score-actions,
       #view-input .miss-actions,
@@ -87,6 +94,8 @@
   picker.setAttribute('aria-label','スマホ用 選手クイック選択');
   actionCard.insertBefore(picker,selectedBar);
 
+  let activeSelection=null;
+
   function loadState(){
     try{
       const state=JSON.parse(localStorage.getItem(STATE_KEY));
@@ -100,7 +109,36 @@
     }[m]));
   }
 
-  function teamRow(state,team){
+  function selectionFromDom(){
+    const row=document.querySelector('.player-row.is-selected[data-select-team][data-select-player]');
+    if(!row) return null;
+    return {team:row.dataset.selectTeam,id:String(row.dataset.selectPlayer)};
+  }
+
+  function stateSelection(state){
+    if(!state?.selected?.team||!state?.selected?.playerId) return null;
+    return {team:String(state.selected.team),id:String(state.selected.playerId)};
+  }
+
+  function currentSelection(state){
+    const dom=selectionFromDom();
+    if(dom){activeSelection=dom;return dom;}
+    if(activeSelection) return activeSelection;
+    const saved=stateSelection(state);
+    if(saved) activeSelection=saved;
+    return saved;
+  }
+
+  function setActiveChip(team,id){
+    activeSelection={team:String(team),id:String(id)};
+    picker.querySelectorAll('.mobile-player-chip').forEach(chip=>{
+      const selected=chip.dataset.selectTeam===activeSelection.team&&String(chip.dataset.selectPlayer)===activeSelection.id;
+      chip.classList.toggle('is-selected',selected);
+      chip.setAttribute('aria-pressed',selected?'true':'false');
+    });
+  }
+
+  function teamRow(state,team,selected){
     const t=state.teams?.[team];
     if(!t) return '';
     const players=(t.players||[]).slice(0,18);
@@ -111,8 +149,8 @@
         </div>
         <div class="mobile-player-strip">
           ${players.map(p=>{
-            const selected=state.selected?.team===team&&String(state.selected?.playerId)===String(p.id);
-            return `<button type="button" class="mobile-player-chip${selected?' is-selected':''}" data-select-team="${team}" data-select-player="${esc(p.id)}" aria-label="TEAM ${team} ${esc(p.number||'番号未入力')} ${esc(p.name||'名称未入力')}">
+            const isSelected=selected?.team===team&&String(selected?.id)===String(p.id);
+            return `<button type="button" class="mobile-player-chip${isSelected?' is-selected':''}" data-select-team="${team}" data-select-player="${esc(p.id)}" aria-pressed="${isSelected?'true':'false'}" aria-label="TEAM ${team} ${esc(p.number||'番号未入力')} ${esc(p.name||'名称未入力')}">
               <strong>#${esc(p.number||'--')}</strong>
               <small>${esc(p.name||'名称未入力')}</small>
             </button>`;
@@ -124,15 +162,29 @@
   function render(){
     const state=loadState();
     if(!state) return;
-    const next=teamRow(state,'A')+teamRow(state,'B');
-    if(picker.dataset.rendered===next) return;
+    const selected=currentSelection(state);
+    const next=teamRow(state,'A',selected)+teamRow(state,'B',selected);
+    if(picker.dataset.rendered===next){
+      if(selected) setActiveChip(selected.team,selected.id);
+      return;
+    }
     picker.innerHTML=next;
     picker.dataset.rendered=next;
   }
 
+  // Give immediate visual feedback on touch, before app.js finishes the normal
+  // selection/render cycle. The same data attributes are then handled by app.js.
+  picker.addEventListener('click',e=>{
+    const chip=e.target.closest('.mobile-player-chip[data-select-team][data-select-player]');
+    if(!chip) return;
+    setActiveChip(chip.dataset.selectTeam,chip.dataset.selectPlayer);
+  });
+
+  // Keep the quick selector synchronized when selection changes through the
+  // full roster, voice input, or another UI control.
   document.addEventListener('click',()=>setTimeout(render,0));
   document.addEventListener('input',()=>setTimeout(render,0));
   window.addEventListener('storage',render);
-  setInterval(render,1000);
+  setInterval(render,500);
   render();
 })();
