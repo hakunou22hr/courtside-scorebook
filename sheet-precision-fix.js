@@ -52,7 +52,10 @@
 
   function fixCoaches(s){
     const A=s?.teams?.A||{},B=s?.teams?.B||{};
-    place(byText(A.coach,42,50),26.2,45.45,{size:'clamp(8px,.85vw,12px)'});
+    // Team A Coach row center on the supplied 1240x1754 official sheet.
+    // Keep the horizontal position, but move the name down from the player-18
+    // boundary into the middle of the Coach row.
+    place(byText(A.coach,42,50),26.2,46.40,{size:'clamp(8px,.85vw,12px)'});
     place(byText(A.assistant,42,51),26.2,46.85,{size:'clamp(8px,.85vw,12px)'});
     place(byText(B.coach,80,87),26.2,83.15,{size:'clamp(8px,.85vw,12px)'});
     place(byText(B.assistant,80,88),26.2,84.55,{size:'clamp(8px,.85vw,12px)'});
