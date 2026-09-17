@@ -21,9 +21,6 @@
     return Number(q)%2===0?BLACK:RED;
   }
 
-  // -------------------------------------------------------------------------
-  // PF 4 / PF 5 warning in the live roster
-  // -------------------------------------------------------------------------
   function refreshPfWarnings(){
     const state=loadState();
     if(!state) return;
@@ -57,13 +54,12 @@
     .timeout-choice-b{background:#27233f;color:#fff}
     .timeout-choice-cancel{margin-top:12px;width:100%;background:#eef3f7!important;color:#23364a!important;padding:12px!important}
     .timeout-choice-grid small{display:block;font-size:11px;font-weight:700;opacity:.8;margin-top:4px}
-    .team-foul-x-overlay{position:absolute;transform:translate(-50%,-50%);font-family:Arial,'Noto Sans JP',sans-serif;font-weight:900;line-height:1;text-align:center;pointer-events:none;z-index:12;font-size:clamp(8px,.9vw,12px)}
+    .team-foul-x-overlay,.sheet-timeout-minute{position:absolute;transform:translate(-50%,-50%);font-family:Arial,'Noto Sans JP',sans-serif;font-weight:900;line-height:1;text-align:center;pointer-events:none;z-index:12}
+    .team-foul-x-overlay{font-size:clamp(8px,.9vw,12px)}
+    .sheet-timeout-minute{font-size:clamp(8px,.9vw,12px)}
   `;
   document.head.appendChild(style);
 
-  // -------------------------------------------------------------------------
-  // TIME OUT: choose TEAM A / TEAM B before using app.js' normal timeout path
-  // -------------------------------------------------------------------------
   function ensureTimeoutDialog(){
     let dlg=document.getElementById('timeoutTeamDialog');
     if(dlg) return dlg;
@@ -129,16 +125,16 @@
     openTimeoutChooser();
   },true);
 
-  // -------------------------------------------------------------------------
-  // Official score sheet team-foul boxes.
   // Exact centers measured from assets/スコアシート.jpg (1240 x 1754).
-  // Q1/Q3 are the left group, Q2/Q4 the right group.
-  // -------------------------------------------------------------------------
   const X_LEFT=[27.379,29.516,31.613,33.750];
   const X_RIGHT=[38.750,40.887,42.984,45.121];
-  const Y={
-    A:{top:15.422,bottom:16.904},
-    B:{top:52.138,bottom:53.592}
+  const Y={A:{top:15.422,bottom:16.904},B:{top:52.138,bottom:53.592}};
+
+  // Time-out boxes: first half has 2 boxes, second half 3, overtime 3.
+  const TIMEOUT_X={first:[6.573,8.266],second:[6.573,8.266,9.960],ot:[6.573,8.266,9.960]};
+  const TIMEOUT_Y={
+    A:{first:15.507,second:16.819,ot:18.159},
+    B:{first:52.195,second:53.535,ot:54.903}
   };
 
   function foulCountForQuarter(state,team,quarter){
@@ -153,14 +149,46 @@
 
   function markPosition(team,q,index){
     const xs=(q===1||q===3)?X_LEFT:X_RIGHT;
-    return {
-      x:xs[index],
-      y:(q===1||q===2)?Y[team].top:Y[team].bottom
-    };
+    return {x:xs[index],y:(q===1||q===2)?Y[team].top:Y[team].bottom};
+  }
+
+  function timeoutEvents(state,team){
+    return (state.events||[])
+      .filter(e=>e&&e.action==='timeout'&&e.team===team)
+      .slice()
+      .sort((a,b)=>new Date(a.ts||0)-new Date(b.ts||0));
+  }
+
+  function timeoutPlacements(state,team){
+    const buckets={first:[],second:[],ot:[]};
+    for(const ev of timeoutEvents(state,team)){
+      const q=Number(ev.quarter)||1;
+      if(q<=2) buckets.first.push(ev);
+      else if(q<=4) buckets.second.push(ev);
+      else buckets.ot.push(ev);
+    }
+    const placements=[];
+    for(const key of ['first','second','ot']){
+      buckets[key].slice(0,TIMEOUT_X[key].length).forEach((ev,i)=>placements.push({ev,key,index:i}));
+    }
+    return placements;
+  }
+
+  function remainingMinute(clock){
+    const seconds=Math.max(0,Number(clock)||0);
+    return String(Math.floor(seconds/60));
   }
 
   function currentSheetSignature(state){
-    return JSON.stringify(['A','B'].map(team=>[1,2,3,4].map(q=>foulCountForQuarter(state,team,q))));
+    const fouls=['A','B'].map(team=>[1,2,3,4].map(q=>foulCountForQuarter(state,team,q)));
+    const timeouts=['A','B'].map(team=>timeoutPlacements(state,team).map(({ev,key,index})=>[team,ev.id,ev.quarter,ev.clock,ev.ts,key,index]));
+    return JSON.stringify([fouls,timeouts]);
+  }
+
+  function expectedManagedCount(state){
+    const fouls=['A','B'].reduce((sum,t)=>sum+[1,2,3,4].reduce((s,q)=>s+foulCountForQuarter(state,t,q),0),0);
+    const timeouts=['A','B'].reduce((sum,t)=>sum+timeoutPlacements(state,t).length,0);
+    return fouls+timeouts;
   }
 
   function renderSheetMarks(force=false){
@@ -169,15 +197,26 @@
     if(!overlay||!state) return;
 
     const sig=currentSheetSignature(state);
-    const expected=['A','B'].reduce((sum,t)=>sum+[1,2,3,4].reduce((s,q)=>s+foulCountForQuarter(state,t,q),0),0);
-    const existing=overlay.querySelectorAll('.team-foul-x-overlay').length;
+    const expected=expectedManagedCount(state);
+    const existing=overlay.querySelectorAll('.team-foul-x-overlay,.sheet-timeout-minute').length;
     if(!force && sig===sheetSignature && existing===expected) return;
     sheetSignature=sig;
 
     if(observer) observer.disconnect();
-    overlay.querySelectorAll('.team-foul-x-overlay').forEach(el=>el.remove());
+    overlay.querySelectorAll('.team-foul-x-overlay,.sheet-timeout-minute').forEach(el=>el.remove());
 
     for(const team of ['A','B']){
+      for(const {ev,key,index} of timeoutPlacements(state,team)){
+        const mark=document.createElement('span');
+        mark.className='sheet-timeout-minute';
+        mark.textContent=remainingMinute(ev.clock);
+        mark.style.left=`${TIMEOUT_X[key][index]}%`;
+        mark.style.top=`${TIMEOUT_Y[team][key]}%`;
+        mark.style.color=inkForQuarter(ev.quarter);
+        mark.title=`TEAM ${team} Q${ev.quarter} タイムアウト 残り${remainingMinute(ev.clock)}分`;
+        overlay.appendChild(mark);
+      }
+
       for(let q=1;q<=4;q++){
         const count=foulCountForQuarter(state,team,q);
         for(let i=0;i<count;i++){
@@ -208,9 +247,11 @@
 
   const overlay=document.getElementById('sheetOverlay');
   if(overlay){
-    observer=new MutationObserver(mutations=>{
-      const lost=mutations.some(m=>[...m.removedNodes].some(n=>n.nodeType===1 && (n.matches?.('.team-foul-x-overlay')||n.querySelector?.('.team-foul-x-overlay'))));
-      if(lost || !overlay.querySelector('.team-foul-x-overlay')) scheduleSheetMarks(true);
+    observer=new MutationObserver(()=>{
+      const state=loadState();
+      if(!state) return;
+      const existing=overlay.querySelectorAll('.team-foul-x-overlay,.sheet-timeout-minute').length;
+      if(existing!==expectedManagedCount(state)) scheduleSheetMarks(true);
     });
     observer.observe(overlay,{childList:true,subtree:false});
   }
