@@ -6,6 +6,82 @@
   const selectedBar=document.querySelector('.selected-bar');
   if(!actionCard||!selectedBar) return;
 
+  const style=document.createElement('style');
+  style.textContent=`
+    .mobile-player-picker{display:none}
+    @media(max-width:820px){
+      #view-input .live-grid{gap:8px}
+      #view-input .action-card{
+        padding:8px;
+        display:grid;
+        grid-template-columns:repeat(6,minmax(0,1fr));
+        gap:5px;
+        align-items:stretch;
+      }
+      .mobile-player-picker{
+        display:grid;
+        grid-column:1/-1;
+        gap:5px;
+        min-width:0;
+      }
+      .mobile-player-team{
+        display:grid;
+        grid-template-columns:62px minmax(0,1fr);
+        gap:5px;
+        align-items:center;
+        min-width:0;
+      }
+      .mobile-player-team-head{min-width:0;line-height:1.1}
+      .mobile-player-team-head b{display:block;font-size:11px;color:#17365f}
+      .mobile-player-team-head span{display:block;margin-top:3px;font-size:8px;color:#708196;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mobile-player-strip{
+        display:flex;
+        gap:4px;
+        overflow-x:auto;
+        min-width:0;
+        padding:1px 1px 3px;
+        -webkit-overflow-scrolling:touch;
+        scrollbar-width:none;
+      }
+      .mobile-player-strip::-webkit-scrollbar{display:none}
+      .mobile-player-chip{
+        flex:0 0 54px;
+        min-width:54px;
+        min-height:48px;
+        padding:5px 3px;
+        border:1px solid #cfd9e5;
+        border-radius:8px;
+        background:#fff;
+        color:#17365f;
+        text-align:center;
+        touch-action:manipulation;
+      }
+      .mobile-player-chip strong{display:block;font-size:17px;line-height:1;font-weight:900}
+      .mobile-player-chip small{display:block;margin-top:4px;font-size:8px;line-height:1.05;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mobile-player-chip.is-selected{background:#e9f2ff;border-color:#2f67b8;box-shadow:inset 0 0 0 1px #2f67b8;color:#0d2a4e}
+      #view-input .selected-bar{grid-column:1/-1;padding:6px 8px;font-size:11px}
+      #view-input .score-actions,
+      #view-input .miss-actions,
+      #view-input .stat-actions{grid-column:1/-1;margin-top:0;gap:5px}
+      #view-input .score-actions button{min-height:50px;padding:6px 3px;font-size:22px;border-radius:6px}
+      #view-input .score-actions small{font-size:8px}
+      #view-input .miss-actions button,
+      #view-input .stat-actions button{min-height:38px;padding:5px 3px;font-size:11px;border-radius:6px}
+      #view-input .stat-actions small{font-size:8px}
+      #view-input #playerInBtn{grid-column:1/span 3;margin:0!important;min-height:42px;padding:7px 3px!important;font-size:11px!important;border-radius:6px!important}
+      #view-input #openFoul{grid-column:4/span 3;margin:0!important;min-height:42px;padding:7px 3px;font-size:12px;border-radius:6px}
+      #view-input #staffFoulBtn{grid-column:1/span 2;margin:0!important;min-height:42px;padding:6px 3px!important;font-size:10px!important;border-radius:6px!important}
+      #view-input .game-actions{grid-column:3/-1;margin-top:0;gap:4px}
+      #view-input .game-actions button{min-height:42px;padding:6px 3px;font-size:10px;border-radius:6px}
+      #view-input .roster-card header{padding:10px 12px}
+      #view-input .roster{padding:5px}
+      #view-input .player-row{grid-template-columns:48px 1fr auto;gap:7px;padding:9px 8px;min-height:58px}
+      #view-input .player-row .num{font-size:25px}
+      #view-input .player-row .meta{font-size:10px}
+    }
+  `;
+  document.head.appendChild(style);
+
   const picker=document.createElement('div');
   picker.className='mobile-player-picker';
   picker.setAttribute('aria-label','スマホ用 選手クイック選択');
