@@ -5,8 +5,10 @@
   const RED='#d51f32';
   const BLACK='#111111';
   let bypassTimeout=false;
-  let lastRosterSignature='';
-  let lastSheetSignature='';
+  let rosterSignature='';
+  let sheetSignature='';
+  let observer=null;
+  let scheduled=false;
 
   function loadState(){
     try{
@@ -19,13 +21,15 @@
     return Number(q)%2===0?BLACK:RED;
   }
 
-  // ---- PF warning in the live input roster ---------------------------------
+  // -------------------------------------------------------------------------
+  // PF 4 / PF 5 warning in the live roster
+  // -------------------------------------------------------------------------
   function refreshPfWarnings(){
     const state=loadState();
     if(!state) return;
-    const signature=JSON.stringify(['A','B'].flatMap(t=>(state.teams?.[t]?.players||[]).map(p=>[t,p.id,p.stats?.pts,p.stats?.pf,p.stats?.oreb,p.stats?.dreb])));
-    if(signature===lastRosterSignature && document.querySelectorAll('.pf-hot').length) return;
-    lastRosterSignature=signature;
+    const sig=JSON.stringify(['A','B'].flatMap(t=>(state.teams?.[t]?.players||[]).map(p=>[t,p.id,p.stats?.pts,p.stats?.pf,p.stats?.oreb,p.stats?.dreb])));
+    if(sig===rosterSignature && document.querySelectorAll('.pf-hot').length) return;
+    rosterSignature=sig;
 
     document.querySelectorAll('.player-row[data-select-team][data-select-player]').forEach(row=>{
       const team=row.dataset.selectTeam;
@@ -53,13 +57,13 @@
     .timeout-choice-b{background:#27233f;color:#fff}
     .timeout-choice-cancel{margin-top:12px;width:100%;background:#eef3f7!important;color:#23364a!important;padding:12px!important}
     .timeout-choice-grid small{display:block;font-size:11px;font-weight:700;opacity:.8;margin-top:4px}
-    .sheet-team-foul-mark,.sheet-timeout-mark{position:absolute;transform:translate(-50%,-50%);font-family:Arial,'Noto Sans JP',sans-serif;font-weight:900;text-align:center;line-height:1}
-    .sheet-team-foul-mark{font-size:clamp(8px,1.05vw,14px)}
-    .sheet-timeout-mark{font-size:clamp(7px,.92vw,12px)}
+    .team-foul-x-overlay{position:absolute;transform:translate(-50%,-50%);font-family:Arial,'Noto Sans JP',sans-serif;font-weight:900;line-height:1;text-align:center;pointer-events:none;z-index:12;font-size:clamp(8px,.9vw,12px)}
   `;
   document.head.appendChild(style);
 
-  // ---- TIME OUT: choose TEAM A / TEAM B before recording -------------------
+  // -------------------------------------------------------------------------
+  // TIME OUT: choose TEAM A / TEAM B before using app.js' normal timeout path
+  // -------------------------------------------------------------------------
   function ensureTimeoutDialog(){
     let dlg=document.getElementById('timeoutTeamDialog');
     if(dlg) return dlg;
@@ -78,9 +82,8 @@
     dlg.addEventListener('click',e=>{
       const teamButton=e.target.closest('[data-timeout-team]');
       if(teamButton){
-        const team=teamButton.dataset.timeoutTeam;
         dlg.close();
-        recordTimeoutForTeam(team);
+        recordTimeoutForTeam(teamButton.dataset.timeoutTeam);
         return;
       }
       if(e.target.closest('[data-timeout-cancel]')) dlg.close();
@@ -99,17 +102,10 @@
   function recordTimeoutForTeam(team){
     const timeoutBtn=document.getElementById('timeoutBtn');
     if(!timeoutBtn) return;
-
     const selected=document.querySelector('.player-row.is-selected[data-select-team][data-select-player]');
     const previous=selected?{team:selected.dataset.selectTeam,id:selected.dataset.selectPlayer}:null;
     const target=document.querySelector(`.player-row[data-select-team="${team}"]`);
-    if(!target){
-      alert(`TEAM ${team} に選手が登録されていません。`);
-      return;
-    }
-
-    // Re-use app.js' own timeout() path so UNDO/REDO, event history,
-    // ribbon counts and localStorage all remain consistent.
+    if(!target){alert(`TEAM ${team} に選手が登録されていません。`);return;}
     target.click();
     requestAnimationFrame(()=>{
       bypassTimeout=true;
@@ -119,7 +115,7 @@
           document.querySelector(`.player-row[data-select-team="${previous.team}"][data-select-player="${CSS.escape(String(previous.id))}"]`)?.click();
         }
         refreshPfWarnings();
-        refreshSheetMarks(true);
+        scheduleSheetMarks(true);
       },30);
     });
   }
@@ -127,33 +123,23 @@
   document.addEventListener('click',e=>{
     const btn=e.target.closest('#timeoutBtn');
     if(!btn) return;
-    if(bypassTimeout){
-      bypassTimeout=false;
-      return;
-    }
+    if(bypassTimeout){bypassTimeout=false;return;}
     e.preventDefault();
     e.stopImmediatePropagation();
     openTimeoutChooser();
   },true);
 
-  // ---- Official scoresheet: timeout minute + team foul X -------------------
-  // Native coordinates inside each independently clipped scoresheet block.
-  const TIMEOUT_POSITIONS={
-    first:[[35,37],[65,37]],
-    second:[[100,37],[130,37],[160,37]],
-    ot:[[100,54],[130,54],[160,54]]
+  // -------------------------------------------------------------------------
+  // Official score sheet team-foul boxes.
+  // Exact centers measured from assets/スコアシート.jpg (1240 x 1754).
+  // Q1/Q3 are the left group, Q2/Q4 the right group.
+  // -------------------------------------------------------------------------
+  const X_LEFT=[27.379,29.516,31.613,33.750];
+  const X_RIGHT=[38.750,40.887,42.984,45.121];
+  const Y={
+    A:{top:15.422,bottom:16.904},
+    B:{top:52.138,bottom:53.592}
   };
-  const TEAM_FOUL_POSITIONS={
-    1:[[18,37],[46,37],[74,37],[102,37]],
-    2:[[142,37],[170,37],[198,37],[226,37]],
-    3:[[18,54],[46,54],[74,54],[102,54]],
-    4:[[142,54],[170,54],[198,54],[226,54]]
-  };
-
-  function remainingMinute(clock){
-    const seconds=Math.max(0,Number(clock)||0);
-    return String(Math.floor(seconds/60));
-  }
 
   function foulCountForQuarter(state,team,quarter){
     let count=0;
@@ -165,72 +151,76 @@
     return Math.min(4,count);
   }
 
-  function timeoutEvents(state,team){
-    return (state.events||[])
-      .filter(e=>e&&e.action==='timeout'&&e.team===team)
-      .slice()
-      .sort((a,b)=>new Date(a.ts||0)-new Date(b.ts||0));
+  function markPosition(team,q,index){
+    const xs=(q===1||q===3)?X_LEFT:X_RIGHT;
+    return {
+      x:xs[index],
+      y:(q===1||q===2)?Y[team].top:Y[team].bottom
+    };
   }
 
-  function markHtml(cls,x,y,color,text,title=''){
-    const safeTitle=String(title).replace(/"/g,'&quot;');
-    return `<span class="${cls}" style="left:${x}px;top:${y}px;color:${color}" title="${safeTitle}">${text}</span>`;
+  function currentSheetSignature(state){
+    return JSON.stringify(['A','B'].map(team=>[1,2,3,4].map(q=>foulCountForQuarter(state,team,q))));
   }
 
-  function renderSheetMarks(state){
+  function renderSheetMarks(force=false){
     const overlay=document.getElementById('sheetOverlay');
-    if(!overlay||!state) return;
-    for(const team of ['A','B']){
-      const timeoutBlock=overlay.querySelector(`[data-sheet-block="team${team}TimeoutBlock"]`);
-      const foulBlock=overlay.querySelector(`[data-sheet-block="team${team}FoulsSummaryBlock"]`);
-      if(!timeoutBlock||!foulBlock) continue;
-      const buckets={first:[],second:[],ot:[]};
-      for(const ev of timeoutEvents(state,team)){
-        const q=Number(ev.quarter)||1;
-        buckets[q<=2?'first':q<=4?'second':'ot'].push(ev);
-      }
-      const timeoutHtml=['first','second','ot'].flatMap(key=>buckets[key].slice(0,TIMEOUT_POSITIONS[key].length).map((ev,i)=>{
-        const [x,y]=TIMEOUT_POSITIONS[key][i];
-        return markHtml('sheet-timeout-mark',x,y,inkForQuarter(ev.quarter),remainingMinute(ev.clock),`Q${ev.quarter} 残り ${remainingMinute(ev.clock)}分`);
-      })).join('');
-      if(timeoutBlock.innerHTML!==timeoutHtml) timeoutBlock.innerHTML=timeoutHtml;
-      let fouls='';
-      for(let q=1;q<=4;q++) for(let i=0;i<foulCountForQuarter(state,team,q);i++){
-        const [x,y]=TEAM_FOUL_POSITIONS[q][i];
-        fouls+=markHtml('sheet-team-foul-mark',x,y,inkForQuarter(q),'×',`TEAM ${team} Q${q} チームファウル ${i+1}`);
-      }
-      if(foulBlock.innerHTML!==fouls) foulBlock.innerHTML=fouls;
-    }
-  }
-
-  function sheetSignature(state){
-    if(!state) return '';
-    const fouls=['A','B'].flatMap(t=>(state.teams?.[t]?.players||[]).flatMap(p=>(p.fouls||[]).map(f=>[t,p.id,f.quarter,f.type,f.ft])));
-    const timeouts=(state.events||[]).filter(e=>e?.action==='timeout').map(e=>[e.id,e.team,e.quarter,e.clock,e.ts]);
-    return JSON.stringify([fouls,timeouts]);
-  }
-
-  function refreshSheetMarks(force=false){
     const state=loadState();
-    if(!state) return;
-    const sig=sheetSignature(state);
-    const missing=!document.querySelector('.sheet-timeout-mark,.sheet-team-foul-mark') && /timeout|foul/.test(sig);
-    if(!force && sig===lastSheetSignature && !missing) return;
-    lastSheetSignature=sig;
-    renderSheetMarks(state);
+    if(!overlay||!state) return;
+
+    const sig=currentSheetSignature(state);
+    const expected=['A','B'].reduce((sum,t)=>sum+[1,2,3,4].reduce((s,q)=>s+foulCountForQuarter(state,t,q),0),0);
+    const existing=overlay.querySelectorAll('.team-foul-x-overlay').length;
+    if(!force && sig===sheetSignature && existing===expected) return;
+    sheetSignature=sig;
+
+    if(observer) observer.disconnect();
+    overlay.querySelectorAll('.team-foul-x-overlay').forEach(el=>el.remove());
+
+    for(const team of ['A','B']){
+      for(let q=1;q<=4;q++){
+        const count=foulCountForQuarter(state,team,q);
+        for(let i=0;i<count;i++){
+          const {x,y}=markPosition(team,q,i);
+          const mark=document.createElement('span');
+          mark.className='team-foul-x-overlay';
+          mark.textContent='×';
+          mark.style.left=`${x}%`;
+          mark.style.top=`${y}%`;
+          mark.style.color=inkForQuarter(q);
+          mark.title=`TEAM ${team} Q${q} チームファウル ${i+1}`;
+          overlay.appendChild(mark);
+        }
+      }
+    }
+
+    if(observer) observer.observe(overlay,{childList:true,subtree:false});
+  }
+
+  function scheduleSheetMarks(force=false){
+    if(scheduled) return;
+    scheduled=true;
+    requestAnimationFrame(()=>{
+      scheduled=false;
+      renderSheetMarks(force);
+    });
   }
 
   const overlay=document.getElementById('sheetOverlay');
   if(overlay){
-    const observer=new MutationObserver(()=>{
-      refreshSheetMarks(true);
+    observer=new MutationObserver(mutations=>{
+      const lost=mutations.some(m=>[...m.removedNodes].some(n=>n.nodeType===1 && (n.matches?.('.team-foul-x-overlay')||n.querySelector?.('.team-foul-x-overlay'))));
+      if(lost || !overlay.querySelector('.team-foul-x-overlay')) scheduleSheetMarks(true);
     });
-    observer.observe(overlay,{childList:true});
+    observer.observe(overlay,{childList:true,subtree:false});
   }
 
-  window.addEventListener('storage',()=>{refreshPfWarnings();refreshSheetMarks(true);});
-  document.addEventListener('click',()=>setTimeout(()=>{refreshPfWarnings();refreshSheetMarks();},0));
-  setInterval(()=>{refreshPfWarnings();refreshSheetMarks();},350);
+  window.addEventListener('storage',()=>{refreshPfWarnings();scheduleSheetMarks(true);});
+  document.addEventListener('click',()=>setTimeout(()=>{refreshPfWarnings();scheduleSheetMarks(true);},0));
+  document.getElementById('refreshSheet')?.addEventListener('click',()=>setTimeout(()=>scheduleSheetMarks(true),0));
+  document.querySelector('[data-view="sheet"]')?.addEventListener('click',()=>setTimeout(()=>scheduleSheetMarks(true),50));
+  setInterval(()=>{refreshPfWarnings();scheduleSheetMarks(false);},500);
+
   refreshPfWarnings();
-  refreshSheetMarks(true);
+  scheduleSheetMarks(true);
 })();
