@@ -1,4 +1,4 @@
-const CACHE='courtside-v30';
+const CACHE='courtside-v31';
 const ASSETS=['./','index.html','styles.css','app.js','voice-v2.js?v=21','live-running-score.js?v=1','history-editor.js?v=1','game-rules-enhancements.js?v=3','sheet-static.js','sheet-corrections.js','sheet-precision-fix.js','scoresheet-field-map.json','manifest.webmanifest','assets/スコアシート.jpg'];
 
 self.addEventListener('install', event => {
