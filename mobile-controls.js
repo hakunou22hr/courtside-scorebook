@@ -168,13 +168,45 @@
     const state=loadState();
     if(!state) return;
     const selected=currentSelection(state);
+
+    // While the TEAM A / TEAM B name field is being edited, do not rebuild
+    // the whole quick-selector DOM. Rebuilding it on every keystroke can make
+    // iOS/PWA move the page or reset the horizontal player-strip position.
+    const active=document.activeElement;
+    if(active?.matches?.('[data-team-name]') && picker.children.length){
+      ['A','B'].forEach(team=>{
+        const name=picker.querySelector(`[data-mobile-team="${team}"] .mobile-player-team-head span`);
+        if(name) name.textContent=state.teams?.[team]?.name||`TEAM ${team}`;
+      });
+      if(selected) setActiveChip(selected.team,selected.id);
+      return;
+    }
+
     const next=teamRow(state,'A',selected)+teamRow(state,'B',selected);
     if(picker.dataset.rendered===next){
       if(selected) setActiveChip(selected.team,selected.id);
       return;
     }
+
+    // Preserve both horizontal player-strip positions across a legitimate
+    // re-render so iPhone does not jump back to the first player.
+    const stripScroll={};
+    picker.querySelectorAll('[data-mobile-team]').forEach(row=>{
+      const strip=row.querySelector('.mobile-player-strip');
+      if(strip) stripScroll[row.dataset.mobileTeam]=strip.scrollLeft;
+    });
+
     picker.innerHTML=next;
     picker.dataset.rendered=next;
+
+    requestAnimationFrame(()=>{
+      picker.querySelectorAll('[data-mobile-team]').forEach(row=>{
+        const strip=row.querySelector('.mobile-player-strip');
+        const left=stripScroll[row.dataset.mobileTeam];
+        if(strip&&Number.isFinite(left)) strip.scrollLeft=left;
+      });
+      if(selected) setActiveChip(selected.team,selected.id);
+    });
   }
 
   // On iPhone, selecting a quick chip now clicks the corresponding REAL roster row.
@@ -207,7 +239,11 @@
   // Keep the quick selector synchronized when selection changes through the
   // full roster, voice input, or another UI control.
   document.addEventListener('click',()=>setTimeout(render,0));
-  document.addEventListener('input',()=>setTimeout(render,0));
+  document.addEventListener('input',e=>{
+    // Team-name typing is handled by the lightweight branch in render(),
+    // preventing an iPhone scroll/jump on every character.
+    setTimeout(render,0);
+  });
   window.addEventListener('storage',render);
   setInterval(render,350);
   render();
