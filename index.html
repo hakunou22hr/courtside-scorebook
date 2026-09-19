@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0e2a4e" />
   <title>COURTSIDE SCOREBOOK</title>
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=2" />
 </head>
 <body>
   <header class="app-header">
@@ -84,7 +84,7 @@
   <dialog id="foulDialog"><form method="dialog" class="modal-card"><h2>ファウル入力</h2><p id="foulPlayer">選手</p><fieldset><legend>ファウル種別</legend><div class="choice-grid"><label><input type="radio" name="foulType" value="P" checked> P パーソナル</label><label><input type="radio" name="foulType" value="T"> T テクニカル</label><label><input type="radio" name="foulType" value="U"> U アンスポーツマンライク</label><label><input type="radio" name="foulType" value="D"> D ディスクォリファイング</label></div></fieldset><label>フリースロー<select id="foulFt"><option value="0">なし</option><option value="1">1本</option><option value="2">2本</option><option value="3">3本</option></select></label><div class="button-row"><button value="cancel">キャンセル</button><button id="saveFoul" value="default" class="foul-btn">記録</button></div></form></dialog>
 
   <script src="app.js"></script>
-  <script src="mobile-controls.js?v=2"></script>
+  <script src="mobile-controls.js?v=3"></script>
   <script src="voice-v3.js?v=1"></script>
   <script src="mic-monitor.js?v=1"></script>
   <script src="voice-ios-recovery.js?v=1"></script>
