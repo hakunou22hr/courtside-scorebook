@@ -66,7 +66,13 @@
         box-shadow:inset 0 0 0 2px #fff,0 0 0 3px #2f67b8!important;
         color:#fff!important;
       }
-      #view-input .selected-bar{grid-column:1/-1;padding:6px 8px;font-size:11px}
+      #view-input .selected-bar{grid-column:1/-1;padding:6px 8px;font-size:11px;display:flex;align-items:center;gap:6px;overflow:hidden}
+      #view-input .selected-bar>span{flex:0 0 auto}
+      #view-input .selected-bar>strong{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mobile-selected-score{display:flex!important;flex:0 0 auto!important;align-items:center;gap:4px;padding:4px 6px;border-radius:6px;background:#fff;border:1px solid #d5deea;color:#17365f;font-size:9px;font-weight:900;white-space:nowrap}
+      .mobile-selected-score b{font-size:15px;line-height:1}
+      .mobile-selected-score .team-b-score{color:#e93f4e}
+      #view-input .setup-panel,#view-input .mobile-player-picker{overflow-anchor:none}
       #view-input .score-actions,
       #view-input .miss-actions,
       #view-input .stat-actions{grid-column:1/-1;margin-top:0;gap:5px}
@@ -93,6 +99,12 @@
   picker.className='mobile-player-picker';
   picker.setAttribute('aria-label','スマホ用 選手クイック選択');
   actionCard.insertBefore(picker,selectedBar);
+
+  const mobileScore=document.createElement('span');
+  mobileScore.className='mobile-selected-score';
+  mobileScore.setAttribute('aria-label','現在のスコア');
+  mobileScore.innerHTML='<span>A</span><b data-mobile-score="A">0</b><span>－</span><b class="team-b-score" data-mobile-score="B">0</b><span>B</span>';
+  selectedBar.appendChild(mobileScore);
 
   let activeSelection=null;
 
@@ -168,16 +180,23 @@
     const state=loadState();
     if(!state) return;
     const selected=currentSelection(state);
+    ['A','B'].forEach(team=>{
+      const score=(state.teams?.[team]?.players||[]).reduce((sum,p)=>sum+(Number(p.stats?.pts)||0),0);
+      const out=mobileScore.querySelector(`[data-mobile-score="${team}"]`);
+      if(out) out.textContent=score;
+    });
 
-    // While the TEAM A / TEAM B name field is being edited, do not rebuild
-    // the whole quick-selector DOM. Rebuilding it on every keystroke can make
-    // iOS/PWA move the page or reset the horizontal player-strip position.
+    // Do not rebuild anything above the focused setup field while typing.
+    // On iPhone/PWA, replacing those nodes can make Safari move the viewport
+    // upward even though the focused field itself did not change.
     const active=document.activeElement;
-    if(active?.matches?.('[data-team-name]') && picker.children.length){
-      ['A','B'].forEach(team=>{
-        const name=picker.querySelector(`[data-mobile-team="${team}"] .mobile-player-team-head span`);
-        if(name) name.textContent=state.teams?.[team]?.name||`TEAM ${team}`;
-      });
+    if(active?.closest?.('#setupPanel') && picker.children.length){
+      if(active?.matches?.('[data-team-name]')){
+        ['A','B'].forEach(team=>{
+          const name=picker.querySelector(`[data-mobile-team="${team}"] .mobile-player-team-head span`);
+          if(name) name.textContent=state.teams?.[team]?.name||`TEAM ${team}`;
+        });
+      }
       if(selected) setActiveChip(selected.team,selected.id);
       return;
     }
@@ -239,11 +258,10 @@
   // Keep the quick selector synchronized when selection changes through the
   // full roster, voice input, or another UI control.
   document.addEventListener('click',()=>setTimeout(render,0));
-  document.addEventListener('input',e=>{
-    // Team-name typing is handled by the lightweight branch in render(),
-    // preventing an iPhone scroll/jump on every character.
-    setTimeout(render,0);
-  });
+  document.addEventListener('input',()=>setTimeout(render,0));
+  document.addEventListener('focusout',e=>{
+    if(e.target.closest?.('#setupPanel')) setTimeout(render,0);
+  },true);
   window.addEventListener('storage',render);
   setInterval(render,350);
   render();
