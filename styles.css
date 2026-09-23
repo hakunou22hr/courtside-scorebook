@@ -68,3 +68,7 @@
   .score-team div>span{font-size:42px}
   .clock-box strong{font-size:28px}
 }
+
+/* Keep the lower setup form fixed while its values are edited. */
+#setupPanel{overflow-anchor:none}
+#setupPanel input,#setupPanel select,#setupPanel textarea{overflow-anchor:none}
