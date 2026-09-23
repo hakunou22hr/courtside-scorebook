@@ -68,6 +68,7 @@
   // exact vertical position where editing started. Safari can otherwise
   // auto-scroll upward as the virtual keyboard/visual viewport changes.
   let setupEditScrollY=null;
+  let setupPreFocusScrollY=null;
   let setupScrollRestoreRaf=0;
   function editingSetup(){return !!document.activeElement?.closest?.('#setupPanel');}
   function restoreSetupScroll(){
@@ -79,14 +80,33 @@
       }
     });
   }
+  // Capture the page position BEFORE Safari focuses the field. On iPhone,
+  // focus itself may scroll first, so focusin alone is already too late.
+  document.addEventListener('pointerdown',e=>{
+    if(e.target.closest?.('#setupPanel') && e.target.matches?.('input,select,textarea')){
+      setupPreFocusScrollY=window.scrollY;
+    }
+  },true);
+  document.addEventListener('touchstart',e=>{
+    const target=e.target;
+    if(target?.closest?.('#setupPanel') && target.matches?.('input,select,textarea')){
+      setupPreFocusScrollY=window.scrollY;
+    }
+  },{capture:true,passive:true});
   document.addEventListener('focusin',e=>{
     if(!e.target.closest?.('#setupPanel'))return;
-    setupEditScrollY=window.scrollY;
+    setupEditScrollY=setupPreFocusScrollY??window.scrollY;
+    setupPreFocusScrollY=null;
     restoreSetupScroll();
+    // iOS can perform a second automatic scroll while the keyboard opens.
+    [30,90,180,320].forEach(ms=>setTimeout(restoreSetupScroll,ms));
   },true);
   document.addEventListener('input',e=>{
     syncSetupInput(e.target);
-    if(e.target.closest?.('#setupPanel'))restoreSetupScroll();
+    if(e.target.closest?.('#setupPanel')){
+      restoreSetupScroll();
+      setTimeout(restoreSetupScroll,0);
+    }
   });
   document.addEventListener('focusout',e=>{
     if(!e.target.closest?.('#setupPanel'))return;
