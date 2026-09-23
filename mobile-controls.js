@@ -263,6 +263,63 @@
     if(e.target.closest?.('#setupPanel')) setTimeout(render,0);
   },true);
   window.addEventListener('storage',render);
+
+  // iPhone/PWA: keep the setup card at the exact same vertical position while
+  // editing team/player/game fields. iOS may otherwise auto-scroll the page
+  // when the keyboard appears or when text changes in a focused input.
+  let setupEditLock=null;
+  let setupLockRaf=0;
+
+  function setupEditorActive(){
+    const el=document.activeElement;
+    return el && el.closest && el.closest('#setupPanel') && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+  }
+
+  function restoreSetupScroll(){
+    if(!setupEditLock || !setupEditorActive()) return;
+    cancelAnimationFrame(setupLockRaf);
+    setupLockRaf=requestAnimationFrame(()=>{
+      const maxY=Math.max(0,document.documentElement.scrollHeight-window.innerHeight);
+      const y=Math.min(setupEditLock.y,maxY);
+      if(Math.abs(window.scrollY-y)>1) window.scrollTo({top:y,left:setupEditLock.x,behavior:'auto'});
+    });
+  }
+
+  document.addEventListener('focusin',e=>{
+    const field=e.target.closest?.('#setupPanel input,#setupPanel select,#setupPanel textarea');
+    if(!field) return;
+    setupEditLock={x:window.scrollX,y:window.scrollY};
+    requestAnimationFrame(restoreSetupScroll);
+    setTimeout(restoreSetupScroll,60);
+    setTimeout(restoreSetupScroll,220);
+  },true);
+
+  document.addEventListener('input',e=>{
+    if(e.target.closest?.('#setupPanel')) restoreSetupScroll();
+  },true);
+
+  document.addEventListener('keyup',e=>{
+    if(e.target.closest?.('#setupPanel')) restoreSetupScroll();
+  },true);
+
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',restoreSetupScroll);
+    window.visualViewport.addEventListener('scroll',restoreSetupScroll);
+  }
+
+  document.addEventListener('focusout',e=>{
+    if(!e.target.closest?.('#setupPanel')) return;
+    const previous=setupEditLock;
+    setTimeout(()=>{
+      if(setupEditorActive()){
+        setupEditLock=previous||{x:window.scrollX,y:window.scrollY};
+        restoreSetupScroll();
+      }else{
+        setupEditLock=null;
+      }
+    },80);
+  },true);
+
   setInterval(render,350);
   render();
 })();
