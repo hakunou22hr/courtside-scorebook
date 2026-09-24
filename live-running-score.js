@@ -176,7 +176,18 @@
 
     if (latestScore > 0){
       const row = rows.querySelector(`[data-score-row="${latestScore}"]`);
-      if (row) requestAnimationFrame(()=>row.scrollIntoView({block:'center',behavior:'smooth'}));
+      if (row) requestAnimationFrame(()=>{
+        // IMPORTANT: never use row.scrollIntoView() here.
+        // scrollIntoView also scrolls the page itself, so editing TEAM A/B or
+        // player names below the live cards can suddenly jump the whole screen
+        // back up to the running-score card. Scroll only this card's own
+        // internal scroller instead.
+        const rowTop=row.offsetTop;
+        const target=Math.max(0,rowTop-(scroll.clientHeight-row.offsetHeight)/2);
+        if(Math.abs(scroll.scrollTop-target)>2){
+          scroll.scrollTo({top:target,behavior:'smooth'});
+        }
+      });
     }
   }
 
