@@ -64,64 +64,93 @@
   function voiceStart(){if(!recognition)initVoice();if(!recognition||listening)return;try{listening=true;document.getElementById('voiceBtn').classList.add('is-listening');voiceMessage('聞き取り中…');recognition.start()}catch{}}
   function voiceStop(){if(recognition&&listening){try{recognition.stop()}catch{}}}
   document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.view)switchView(b.dataset.view);if(b.dataset.selectPlayer){state.selected={team:b.dataset.selectTeam,playerId:b.dataset.selectPlayer};renderRoster('A');renderRoster('B');renderSelected()}if(b.dataset.action){['ftm','ftx','fg2m','fg2x','fg3m','fg3x'].includes(b.dataset.action)?scoreAction(b.dataset.action):statAction(b.dataset.action)}if(b.dataset.addPlayer)addPlayer(b.dataset.addPlayer);if(b.classList.contains('remove-player')){const row=b.closest('[data-edit-id]');if(confirm('この選手を削除しますか？'))mutate(()=>state.teams[row.dataset.team].players=state.teams[row.dataset.team].players.filter(p=>p.id!==row.dataset.editId))}if(b.dataset.zoom)document.getElementById('sheetPrintArea').style.transform=`scale(${b.dataset.zoom})`});
-  // iPhone/PWA: while editing the lower setup panel, keep the page at the
-  // exact vertical position where editing started. Safari can otherwise
-  // auto-scroll upward as the virtual keyboard/visual viewport changes.
+  // iPhone home-screen app: lock the document at the exact position where
+  // the user starts editing the lower setup panel. In standalone mode iOS can
+  // pan the whole document when the software keyboard opens, even when normal
+  // scroll restoration and overflow-anchor are disabled.
+  const isiOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const isStandalone=window.matchMedia?.('(display-mode: standalone)')?.matches||navigator.standalone===true;
   let setupEditScrollY=null;
   let setupPreFocusScrollY=null;
-  let setupScrollRestoreRaf=0;
-  function editingSetup(){return !!document.activeElement?.closest?.('#setupPanel');}
-  function restoreSetupScroll(){
-    if(setupEditScrollY==null||!editingSetup())return;
-    cancelAnimationFrame(setupScrollRestoreRaf);
-    setupScrollRestoreRaf=requestAnimationFrame(()=>{
-      if(setupEditScrollY!=null&&editingSetup()&&Math.abs(window.scrollY-setupEditScrollY)>1){
-        window.scrollTo({top:setupEditScrollY,left:0,behavior:'auto'});
-      }
-    });
+  let setupLocked=false;
+
+  function setupTarget(el){
+    return !!el?.closest?.('#setupPanel')&&el.matches?.('input,select,textarea');
   }
-  // Capture the page position BEFORE Safari focuses the field. On iPhone,
-  // focus itself may scroll first, so focusin alone is already too late.
-  document.addEventListener('pointerdown',e=>{
-    if(e.target.closest?.('#setupPanel') && e.target.matches?.('input,select,textarea')){
-      setupPreFocusScrollY=window.scrollY;
+  function lockSetupPage(){
+    if(!isiOS||!isStandalone||setupLocked||setupEditScrollY==null)return;
+    const body=document.body;
+    body.classList.add('ios-setup-editing');
+    body.style.position='fixed';
+    body.style.top=`-${setupEditScrollY}px`;
+    body.style.left='0';
+    body.style.right='0';
+    body.style.width='100%';
+    document.documentElement.style.overflow='hidden';
+    setupLocked=true;
+  }
+  function unlockSetupPage(){
+    if(!setupLocked)return;
+    const y=setupEditScrollY??0;
+    const body=document.body;
+    body.classList.remove('ios-setup-editing');
+    body.style.position='';
+    body.style.top='';
+    body.style.left='';
+    body.style.right='';
+    body.style.width='';
+    document.documentElement.style.overflow='';
+    setupLocked=false;
+    requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'}));
+  }
+  function restoreSetupScroll(){
+    if(setupEditScrollY==null)return;
+    if(isiOS&&isStandalone){
+      if(!setupLocked)lockSetupPage();
+      return;
     }
+    if(document.activeElement?.closest?.('#setupPanel')&&Math.abs(window.scrollY-setupEditScrollY)>1){
+      window.scrollTo({top:setupEditScrollY,left:0,behavior:'auto'});
+    }
+  }
+
+  // Capture the position before focus; iOS may already have scrolled by the
+  // time focusin fires.
+  document.addEventListener('pointerdown',e=>{
+    if(setupTarget(e.target))setupPreFocusScrollY=window.scrollY;
   },true);
   document.addEventListener('touchstart',e=>{
-    const target=e.target;
-    if(target?.closest?.('#setupPanel') && target.matches?.('input,select,textarea')){
-      setupPreFocusScrollY=window.scrollY;
-    }
+    if(setupTarget(e.target))setupPreFocusScrollY=window.scrollY;
   },{capture:true,passive:true});
+
   document.addEventListener('focusin',e=>{
-    if(!e.target.closest?.('#setupPanel'))return;
+    if(!setupTarget(e.target))return;
     setupEditScrollY=setupPreFocusScrollY??window.scrollY;
     setupPreFocusScrollY=null;
-    restoreSetupScroll();
-    // iOS can perform a second automatic scroll while the keyboard opens.
-    [30,90,180,320].forEach(ms=>setTimeout(restoreSetupScroll,ms));
+    if(isiOS&&isStandalone)lockSetupPage();
+    else [0,40,100,200,350].forEach(ms=>setTimeout(restoreSetupScroll,ms));
   },true);
+
   document.addEventListener('input',e=>{
     syncSetupInput(e.target);
-    if(e.target.closest?.('#setupPanel')){
-      restoreSetupScroll();
-      setTimeout(restoreSetupScroll,0);
-    }
+    if(setupTarget(e.target))restoreSetupScroll();
   });
+
   document.addEventListener('focusout',e=>{
     if(!e.target.closest?.('#setupPanel'))return;
     setTimeout(()=>{
-      if(editingSetup()){restoreSetupScroll();return;}
+      if(document.activeElement?.closest?.('#setupPanel')){
+        restoreSetupScroll();
+        return;
+      }
       const y=setupEditScrollY??window.scrollY;
+      if(isiOS&&isStandalone)unlockSetupPage();
       setupEditScrollY=null;
       renderRibbon();renderRoster('A');renderRoster('B');renderSheet();
       requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'}));
-    },0);
+    },60);
   },true);
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize',restoreSetupScroll);
-    window.visualViewport.addEventListener('scroll',restoreSetupScroll);
-  }
+
   document.getElementById('clockToggle').addEventListener('click',toggleClock);document.getElementById('startGame').addEventListener('click',startGame);document.getElementById('endGame').addEventListener('click',endGame);document.getElementById('quarterEnd').addEventListener('click',endQuarter);document.getElementById('timeoutBtn').addEventListener('click',timeout);document.getElementById('openFoul').addEventListener('click',()=>{if(!selectedPlayer())return alert('先に選手を選択してください');renderSelected();document.getElementById('foulDialog').showModal()});document.getElementById('saveFoul').addEventListener('click',e=>{e.preventDefault();const type=document.querySelector('input[name="foulType"]:checked').value;recordFoul(type,document.getElementById('foulFt').value);document.getElementById('foulDialog').close()});document.getElementById('undoBtn').addEventListener('click',undo);document.getElementById('redoBtn').addEventListener('click',redo);document.getElementById('printSheet').addEventListener('click',()=>window.print());document.getElementById('printShortcut').addEventListener('click',()=>{switchView('sheet');setTimeout(()=>window.print(),100)});document.getElementById('historyShortcut').addEventListener('click',()=>switchView('pbp'));document.getElementById('refreshSheet').addEventListener('click',renderSheet);document.getElementById('clearGame').addEventListener('click',()=>{if(confirm('試合データをすべて初期化しますか？')){localStorage.removeItem(STORAGE_KEY);state=defaultState();undoStack=[];redoStack=[];renderAll()}});
   const vb=document.getElementById('voiceBtn');vb.addEventListener('pointerdown',e=>{e.preventDefault();voiceStart()});['pointerup','pointercancel','pointerleave'].forEach(n=>vb.addEventListener(n,e=>{e.preventDefault();voiceStop()}));
   window.addEventListener('beforeunload',save);if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});renderAll();
