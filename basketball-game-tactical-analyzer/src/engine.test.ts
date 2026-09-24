@@ -1,0 +1,3 @@
+import{describe,expect,it}from'vitest';import{makeAdvice,suggestion}from'./engine';import type{TacticalFinding}from'./types';
+const base:TacticalFinding={id:'1',timestamp:10,quarter:'1Q',team:'dark',phase:'オフェンス',kind:'GOOD',finding:'ペイントタッチ',evidence:'守備が収縮',confidence:'高',priority:2,recommendation:'継続',createdAt:''};
+describe('rule engine',()=>{it('returns phase-specific suggestions',()=>expect(suggestion('プレスダウン','FIX').recommendation).toContain('中央'));it('prioritizes a fix for the next three possessions',()=>expect(makeAdvice([base,{...base,id:'2',kind:'FIX',finding:'中央を許した',recommendation:'右を切る'}]).nextThree).toBe('右を切る'));it('detects a repeated successful phase',()=>expect(makeAdvice([base,{...base,id:'2',timestamp:20}]).positive).toContain('繰り返し'))});
