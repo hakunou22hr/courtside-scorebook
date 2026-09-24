@@ -72,3 +72,17 @@
 /* Keep the lower setup form fixed while its values are edited. */
 #setupPanel{overflow-anchor:none}
 #setupPanel input,#setupPanel select,#setupPanel textarea{overflow-anchor:none}
+
+/* iPhone standalone editor stability */
+@media(max-width:820px){
+  #setupPanel input,#setupPanel select,#setupPanel textarea{
+    font-size:16px!important;
+  }
+  body.ios-setup-editing .action-card{
+    position:static!important;
+    top:auto!important;
+  }
+  body.ios-setup-editing .bottom-bar{
+    display:none!important;
+  }
+}
