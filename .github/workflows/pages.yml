@@ -11,17 +11,73 @@ concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
-  deploy:
+  build-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          path: .
+          node-version: 22
+          cache: npm
+          cache-dependency-path: basketball-game-tactical-analyzer/package-lock.json
+
+      - name: Install Tactical Analyzer dependencies
+        working-directory: basketball-game-tactical-analyzer
+        run: npm ci
+
+      - name: Test Tactical Analyzer
+        working-directory: basketball-game-tactical-analyzer
+        run: npm run test
+
+      - name: Build Tactical Analyzer
+        working-directory: basketball-game-tactical-analyzer
+        run: npm run build
+
+      - name: Assemble Pages artifact
+        run: |
+          mkdir -p _site/basketball-game-tactical-analyzer
+
+          # Preserve the existing scorebook site at the Pages root. Repository
+          # metadata and the Tactical Analyzer source tree are intentionally
+          # excluded from the public artifact.
+          rsync -av \
+            --exclude '/.git/' \
+            --exclude '/.github/' \
+            --exclude '/.gitkeep' \
+            --exclude '/README.md' \
+            --exclude '/_site/' \
+            --exclude '/basketball-game-tactical-analyzer/' \
+            ./ _site/
+
+          # Publish only Vite's production output at the analyzer subpath.
+          cp -a basketball-game-tactical-analyzer/dist/. \
+            _site/basketball-game-tactical-analyzer/
+          touch _site/.nojekyll
+
+          test -f _site/index.html
+          test -f _site/app.js
+          test -f _site/basketball-game-tactical-analyzer/index.html
+          test -f _site/basketball-game-tactical-analyzer/manifest.webmanifest
+          test -f _site/basketball-game-tactical-analyzer/sw.js
+          test ! -e _site/.git
+          test ! -e _site/.github
+          test ! -e _site/basketball-game-tactical-analyzer/src
+          test ! -e _site/basketball-game-tactical-analyzer/node_modules
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
