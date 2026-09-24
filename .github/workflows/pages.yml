@@ -65,6 +65,7 @@ jobs:
           test -f _site/basketball-game-tactical-analyzer/index.html
           test -f _site/basketball-game-tactical-analyzer/manifest.webmanifest
           test -f _site/basketball-game-tactical-analyzer/sw.js
+          test -f _site/basketball-game-tactical-analyzer/icon.svg
           test ! -e _site/.git
           test ! -e _site/.github
           test ! -e _site/basketball-game-tactical-analyzer/src
