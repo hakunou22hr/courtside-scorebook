@@ -86,9 +86,27 @@
   let setupEditScrollY=null;
   let setupPreFocusScrollY=null;
   let setupLocked=false;
+  let setupFocusedField=null;
 
   function setupTarget(el){
     return !!el?.closest?.('#setupPanel')&&el.matches?.('input,select,textarea');
+  }
+  function positionSetupFieldAboveKeyboard(el){
+    if(!setupTarget(el))return;
+    const viewport=window.visualViewport;
+    const viewportTop=viewport?.offsetTop||0;
+    const viewportHeight=viewport?.height||window.innerHeight;
+    // Keep the field in the upper part of the visible area so the iOS keyboard
+    // never covers the value the user is currently typing.
+    const targetTop=viewportTop+Math.max(84,Math.min(140,viewportHeight*.22));
+    const rect=el.getBoundingClientRect();
+    const currentY=setupLocked&&setupEditScrollY!=null?setupEditScrollY:window.scrollY;
+    const delta=rect.top-targetTop;
+    if(Math.abs(delta)<4)return;
+    const nextY=Math.max(0,currentY+delta);
+    setupEditScrollY=nextY;
+    if(setupLocked)document.body.style.top=`-${nextY}px`;
+    else window.scrollTo({top:nextY,left:0,behavior:'auto'});
   }
   function lockSetupPage(){
     if(!isiOS||!isStandalone||setupLocked||setupEditScrollY==null)return;
@@ -138,11 +156,24 @@
 
   document.addEventListener('focusin',e=>{
     if(!setupTarget(e.target))return;
-    setupEditScrollY=setupPreFocusScrollY??window.scrollY;
+    setupFocusedField=e.target;
+    setupEditScrollY=window.scrollY;
     setupPreFocusScrollY=null;
-    if(isiOS&&isStandalone)lockSetupPage();
-    else [0,40,100,200,350].forEach(ms=>setTimeout(restoreSetupScroll,ms));
+    if(isiOS&&isStandalone){
+      positionSetupFieldAboveKeyboard(e.target);
+      lockSetupPage();
+      [80,220,420].forEach(ms=>setTimeout(()=>positionSetupFieldAboveKeyboard(setupFocusedField),ms));
+    }else{
+      e.target.scrollIntoView?.({block:'center',inline:'nearest',behavior:'auto'});
+      [0,40,100,200,350].forEach(ms=>setTimeout(restoreSetupScroll,ms));
+    }
   },true);
+
+  window.visualViewport?.addEventListener('resize',()=>{
+    if(isiOS&&isStandalone&&setupFocusedField){
+      setTimeout(()=>positionSetupFieldAboveKeyboard(setupFocusedField),0);
+    }
+  });
 
   document.addEventListener('input',e=>{
     if(e.target.dataset.teamSearch){renderTeamSearchResults(e.target.dataset.teamSearch,e.target.value);restoreSetupScroll();return}
@@ -159,6 +190,7 @@
       }
       const y=setupEditScrollY??window.scrollY;
       if(isiOS&&isStandalone)unlockSetupPage();
+      setupFocusedField=null;
       setupEditScrollY=null;
       renderRibbon();renderRoster('A');renderRoster('B');renderSheet();
       requestAnimationFrame(()=>window.scrollTo({top:y,left:0,behavior:'auto'}));
