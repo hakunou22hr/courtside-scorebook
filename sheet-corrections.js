@@ -94,20 +94,27 @@
       mark.style.transform='translate(-50%,-50%)';
       mark.style.color=color;
       mark.style.position='absolute';
-      mark.style.width='14px';
-      mark.style.height='14px';
-      mark.style.display='flex';
-      mark.style.alignItems='center';
+      // Keep the complete foul notation inside one score-sheet cell. Avoid fixed
+      // pixel width/height and absolute badge offsets: on iPhone the sheet is
+      // scaled down and those pixel offsets can push the FT number into another row.
+      mark.style.width='auto';
+      mark.style.height='auto';
+      mark.style.display='inline-flex';
+      mark.style.alignItems='baseline';
       mark.style.justifyContent='center';
+      mark.style.gap='0';
       mark.style.fontFamily='Arial,"Noto Sans JP",sans-serif';
       mark.style.fontWeight='900';
-      mark.style.fontSize='clamp(7px,.82vw,11px)';
+      mark.style.fontSize='clamp(4px,.82vw,11px)';
       mark.style.lineHeight='1';
+      mark.style.whiteSpace='nowrap';
       mark.style.overflow='visible';
 
       const main=document.createElement('span');
       main.className='foul-main';
       main.textContent=type;
+      main.style.display='inline-block';
+      main.style.fontSize='1em';
       main.style.lineHeight='1';
       mark.appendChild(main);
 
@@ -115,14 +122,16 @@
         const badge=document.createElement('span');
         badge.className='foul-ft-count';
         badge.textContent=String(ft);
-        badge.style.position='absolute';
-        badge.style.right='-2px';
-        badge.style.bottom='-3px';
-        badge.style.fontSize='clamp(5px,.52vw,7px)';
+        badge.style.position='static';
+        badge.style.display='inline-block';
+        badge.style.marginLeft='-0.08em';
+        badge.style.fontSize='.58em';
         badge.style.fontWeight='900';
         badge.style.lineHeight='1';
         badge.style.color=color;
         badge.style.background='transparent';
+        badge.style.transform='translateY(.38em)';
+        badge.style.transformOrigin='left top';
         mark.appendChild(badge);
       }
     });
