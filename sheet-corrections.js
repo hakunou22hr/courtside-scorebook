@@ -94,20 +94,29 @@
       mark.style.transform='translate(-50%,-50%)';
       mark.style.color=color;
       mark.style.position='absolute';
-      mark.style.width='14px';
-      mark.style.height='14px';
-      mark.style.display='flex';
-      mark.style.alignItems='center';
-      mark.style.justifyContent='center';
+      // Size the notation by the actual score-sheet cell, not by device pixels.
+      // The foul column pitch is about 2.883% of the sheet width and each player
+      // row is about 1.41% of the sheet height. Using percentages makes iPhone
+      // and desktop render the same geometry.
+      mark.style.width='2.45%';
+      mark.style.height='1.08%';
+      mark.style.display='block';
       mark.style.fontFamily='Arial,"Noto Sans JP",sans-serif';
       mark.style.fontWeight='900';
-      mark.style.fontSize='clamp(7px,.82vw,11px)';
+      mark.style.fontSize='clamp(4px,.82vw,11px)';
       mark.style.lineHeight='1';
-      mark.style.overflow='visible';
+      mark.style.whiteSpace='nowrap';
+      mark.style.overflow='hidden';
+      mark.style.boxSizing='border-box';
 
       const main=document.createElement('span');
       main.className='foul-main';
       main.textContent=type;
+      main.style.position='absolute';
+      main.style.left='44%';
+      main.style.top='45%';
+      main.style.transform='translate(-50%,-50%)';
+      main.style.fontSize='1em';
       main.style.lineHeight='1';
       mark.appendChild(main);
 
@@ -116,9 +125,10 @@
         badge.className='foul-ft-count';
         badge.textContent=String(ft);
         badge.style.position='absolute';
-        badge.style.right='-2px';
-        badge.style.bottom='-3px';
-        badge.style.fontSize='clamp(5px,.52vw,7px)';
+        badge.style.left='61%';
+        badge.style.top='67%';
+        badge.style.transform='translate(-50%,-50%)';
+        badge.style.fontSize='.56em';
         badge.style.fontWeight='900';
         badge.style.lineHeight='1';
         badge.style.color=color;
