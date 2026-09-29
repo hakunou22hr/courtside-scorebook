@@ -94,26 +94,28 @@
       mark.style.transform='translate(-50%,-50%)';
       mark.style.color=color;
       mark.style.position='absolute';
-      // Keep the complete foul notation inside one score-sheet cell. Avoid fixed
-      // pixel width/height and absolute badge offsets: on iPhone the sheet is
-      // scaled down and those pixel offsets can push the FT number into another row.
-      mark.style.width='auto';
-      mark.style.height='auto';
-      mark.style.display='inline-flex';
-      mark.style.alignItems='baseline';
-      mark.style.justifyContent='center';
-      mark.style.gap='0';
+      // Size the notation by the actual score-sheet cell, not by device pixels.
+      // The foul column pitch is about 2.883% of the sheet width and each player
+      // row is about 1.41% of the sheet height. Using percentages makes iPhone
+      // and desktop render the same geometry.
+      mark.style.width='2.45%';
+      mark.style.height='1.08%';
+      mark.style.display='block';
       mark.style.fontFamily='Arial,"Noto Sans JP",sans-serif';
       mark.style.fontWeight='900';
       mark.style.fontSize='clamp(4px,.82vw,11px)';
       mark.style.lineHeight='1';
       mark.style.whiteSpace='nowrap';
-      mark.style.overflow='visible';
+      mark.style.overflow='hidden';
+      mark.style.boxSizing='border-box';
 
       const main=document.createElement('span');
       main.className='foul-main';
       main.textContent=type;
-      main.style.display='inline-block';
+      main.style.position='absolute';
+      main.style.left='44%';
+      main.style.top='45%';
+      main.style.transform='translate(-50%,-50%)';
       main.style.fontSize='1em';
       main.style.lineHeight='1';
       mark.appendChild(main);
@@ -122,16 +124,15 @@
         const badge=document.createElement('span');
         badge.className='foul-ft-count';
         badge.textContent=String(ft);
-        badge.style.position='static';
-        badge.style.display='inline-block';
-        badge.style.marginLeft='-0.08em';
-        badge.style.fontSize='.58em';
+        badge.style.position='absolute';
+        badge.style.left='61%';
+        badge.style.top='67%';
+        badge.style.transform='translate(-50%,-50%)';
+        badge.style.fontSize='.56em';
         badge.style.fontWeight='900';
         badge.style.lineHeight='1';
         badge.style.color=color;
         badge.style.background='transparent';
-        badge.style.transform='translateY(.38em)';
-        badge.style.transformOrigin='left top';
         mark.appendChild(badge);
       }
     });
