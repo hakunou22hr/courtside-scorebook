@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0e2a4e" />
   <title>COURTSIDE SCOREBOOK</title>
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=11" />
 </head>
 <body>
   <header class="app-header">
@@ -22,7 +22,7 @@
 
   <section class="score-ribbon" aria-label="試合スコア">
     <div class="score-team team-a"><span class="eyebrow">TEAM A</span><strong id="ribbonAName">TEAM A</strong><div><span id="ribbonAScore">0</span><small id="ribbonAQ">Q1 0　Q2 0　Q3 0　Q4 0</small></div><em id="ribbonAFouls">チームファウル 0</em></div>
-    <div class="clock-box"><span id="quarterLabel">第1クォーター</span><strong id="clockText">06:00</strong><button id="clockToggle" class="clock-toggle">▶ START</button></div>
+    <div class="clock-box"><span id="quarterLabel">第1クォーター</span><strong id="clockText">06:00</strong><div class="clock-controls"><button id="clockToggle" class="clock-toggle">▶ START</button><button id="endGameLive" class="end-game-live" type="button">■ 試合終了</button></div></div>
     <div class="score-team team-b"><span class="eyebrow">TEAM B</span><strong id="ribbonBName">TEAM B</strong><div><span id="ribbonBScore">0</span><small id="ribbonBQ">Q1 0　Q2 0　Q3 0　Q4 0</small></div><em id="ribbonBFouls">チームファウル 0</em></div>
   </section>
 
@@ -83,13 +83,13 @@
 
   <dialog id="foulDialog"><form method="dialog" class="modal-card"><h2>ファウル入力</h2><p id="foulPlayer">選手</p><fieldset><legend>ファウル種別</legend><div class="choice-grid"><label><input type="radio" name="foulType" value="P" checked> P パーソナル</label><label><input type="radio" name="foulType" value="T"> T テクニカル</label><label><input type="radio" name="foulType" value="U"> U アンスポーツマンライク</label><label><input type="radio" name="foulType" value="D"> D ディスクォリファイング</label></div></fieldset><label>フリースロー<select id="foulFt"><option value="0">なし</option><option value="1">1本</option><option value="2">2本</option><option value="3">3本</option></select></label><div class="button-row foul-dialog-actions"><button value="cancel" class="foul-cancel-btn">キャンセル</button><button id="saveFoul" type="button" class="foul-confirm-btn" aria-label="ファウル入力を決定">✓ 決定</button></div></form></dialog>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
   <script src="mobile-controls.js?v=5"></script>
   <script src="voice-v3.js?v=1"></script>
   <script src="mic-monitor.js?v=1"></script>
   <script src="voice-ios-recovery.js?v=1"></script>
   <script src="live-running-score.js?v=2"></script>
-  <script src="history-editor.js?v=1"></script>
+  <script src="history-editor.js?v=2"></script>
   <script src="game-rules-enhancements.js?v=3"></script>
   <script src="sheet-static.js"></script>
   <script src="sheet-corrections.js?v=6"></script>
