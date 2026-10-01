@@ -9,6 +9,7 @@
     ast: 'AST', tov: 'TOV', stl: 'STL', blk: 'BLK'
   };
   const EDITABLE = new Set(Object.keys(ACTIONS));
+  const DELETABLE = new Set([...EDITABLE, 'foul', 'timeout']);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmtClock = s => `${String(Math.floor(Number(s||0)/60)).padStart(2,'0')}:${String(Number(s||0)%60).padStart(2,'0')}`;
 
@@ -50,6 +51,29 @@
     }
     clampStats(p);
   }
+  function removeAuxImpact(state, ev){
+    if (!ev?.team) return;
+    if (ev.action === 'timeout') {
+      const team = state.teams?.[ev.team];
+      if (team) team.timeouts = Math.max(0, Number(team.timeouts || 0) - 1);
+      return;
+    }
+    if (ev.action !== 'foul') return;
+    const p = findPlayer(state, ev.team, ev.playerId, ev.playerNumber);
+    const qi = qIndex(ev);
+    const team = state.teams?.[ev.team];
+    if (team?.teamFouls) team.teamFouls[qi] = Math.max(0, Number(team.teamFouls[qi] || 0) - 1);
+    if (!p) return;
+    p.stats.pf = Math.max(0, Number(p.stats?.pf || 0) - 1);
+    const typeMatch = String(ev.detail || '').match(/^([PTUD])ファウル/);
+    const ftMatch = String(ev.detail || '').match(/FT\s*(\d+)本/);
+    const type = typeMatch?.[1] || '';
+    const ft = ftMatch ? Number(ftMatch[1]) : 0;
+    const exact = (p.fouls || []).findIndex(f => Number(f.quarter) === Number(ev.quarter) && Number(f.clock) === Number(ev.clock) && (!type || f.type === type) && Number(f.ft || 0) === ft);
+    const fallback = exact >= 0 ? exact : (p.fouls || []).findIndex(f => Number(f.quarter) === Number(ev.quarter) && (!type || f.type === type));
+    if (fallback >= 0) p.fouls.splice(fallback, 1);
+  }
+
   function actionMeta(action){
     const map = {
       ftm:['フリースロー成功',1], ftx:['フリースロー失敗',0], fg2m:['2P成功',2], fg2x:['2P失敗',0],
@@ -105,6 +129,15 @@
       .history-editor{padding:14px;margin:0 0 14px}.history-editor-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.history-editor-head b{font-size:18px}.history-editor-head small{display:block;color:#6f7f91;margin-top:3px}.history-editor-head button,.history-filters input,.history-filters select{border:1px solid #d7e0ea;background:white;border-radius:7px;padding:9px}.history-filters{display:grid;grid-template-columns:minmax(220px,1fr) 100px 130px 180px;gap:8px;margin-top:12px}.history-edit-list{display:grid;gap:6px;margin-top:10px;max-height:48vh;overflow:auto}.history-edit-row{display:grid;grid-template-columns:92px 82px 1fr 86px;gap:8px;align-items:center;border-top:1px solid #e4eaf0;padding:9px 4px}.history-edit-row .event-main{min-width:0}.history-edit-row .event-main b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.history-edit-row .event-main small{color:#6f7f91}.history-edit-row button{padding:8px;border:1px solid #d7e0ea;background:white;border-radius:7px;font-weight:800}.history-edit-row .corrected{color:#d51f32;font-size:10px;font-weight:900}.history-dialog{min-width:min(620px,calc(100vw - 24px))}.history-dialog-grid{display:grid;grid-template-columns:1fr 1.4fr 1.4fr;gap:10px}.history-dialog-grid label{font-size:12px;font-weight:800}.history-dialog-grid select{display:block;width:100%;padding:9px;margin-top:4px}.history-original{background:#f4f7fa;border-radius:7px;padding:10px}.history-dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.history-dialog-actions button{padding:10px 14px;border:1px solid #d7e0ea;border-radius:7px;background:white;font-weight:800}.history-dialog-actions .primary{background:#0d2a4e!important;color:white}.history-dialog-actions .danger-outline{color:#e93f4e!important;border-color:#e93f4e!important}@media(max-width:820px){.history-filters{grid-template-columns:1fr 1fr}.history-edit-row{grid-template-columns:78px 70px 1fr 70px}.history-dialog-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
+    style.textContent += `
+      #pbpList .pbp-row.has-history-actions{grid-template-columns:90px 80px minmax(0,1fr) 80px 132px}
+      .pbp-row-actions{display:flex;gap:5px;justify-content:flex-end;align-items:center}
+      .pbp-row-actions button{min-width:58px;padding:7px 8px;border:1px solid #d7e0ea;border-radius:7px;background:#fff;font-size:11px;font-weight:900;cursor:pointer}
+      .pbp-row-actions .pbp-edit-btn{color:#17365f;border-color:#9fb4ca}
+      .pbp-row-actions .pbp-delete-btn{color:#e93f4e;border-color:#ef9da5;background:#fff7f8}
+      @media(max-width:820px){#pbpList .pbp-row.has-history-actions{grid-template-columns:78px 70px minmax(0,1fr);gap:7px}.pbp-row.has-history-actions .score{grid-column:2}.pbp-row-actions{grid-column:3;grid-row:2;justify-content:flex-start}.pbp-row-actions button{min-width:54px;padding:7px 6px}}
+    `;
+
 
     let newestFirst = true;
     const refresh = () => renderHistory(newestFirst);
@@ -114,10 +147,35 @@
     root.querySelector('#historyAction').addEventListener('change', refresh);
     root.querySelector('#historySortBtn').addEventListener('click', e=>{newestFirst=!newestFirst;e.currentTarget.textContent=newestFirst?'新しい順':'古い順';refresh();});
     root.querySelector('#historyEditList').addEventListener('click', e=>{const b=e.target.closest('[data-edit-event]');if(b) openEditor(b.dataset.editEvent);});
+    pbp.addEventListener('click', e=>{
+      const edit=e.target.closest('[data-pbp-edit]');
+      if(edit){openEditor(edit.dataset.pbpEdit);return;}
+      const del=e.target.closest('[data-pbp-delete]');
+      if(del){editingId=del.dataset.pbpDelete;deleteEvent();}
+    });
     dialog.querySelector('#editEventTeam').addEventListener('change', fillPlayers);
     dialog.querySelector('#saveEventEdit').addEventListener('click', saveEdit);
     dialog.querySelector('#deleteEventBtn').addEventListener('click', deleteEvent);
     refresh();
+    decoratePbpRows();
+  }
+
+  function decoratePbpRows(){
+    const state=loadState();
+    const list=document.getElementById('pbpList');
+    if(!state||!list) return;
+    const rows=[...list.querySelectorAll('.pbp-row')];
+    rows.forEach((row,index)=>{
+      const ev=state.events[index];
+      row.querySelector('.pbp-row-actions')?.remove();
+      row.classList.remove('has-history-actions');
+      if(!ev||!DELETABLE.has(ev.action)) return;
+      row.classList.add('has-history-actions');
+      const actions=document.createElement('span');
+      actions.className='pbp-row-actions';
+      actions.innerHTML=`${EDITABLE.has(ev.action)?`<button type="button" class="pbp-edit-btn" data-pbp-edit="${esc(ev.id)}">修正</button>`:''}<button type="button" class="pbp-delete-btn" data-pbp-delete="${esc(ev.id)}">削除</button>`;
+      row.appendChild(actions);
+    });
   }
 
   function renderHistory(newestFirst=true){
@@ -165,13 +223,15 @@
     const state=loadState(); const i=state?.events?.findIndex(x=>String(x.id)===String(editingId)); if(i==null||i<0) return;
     const ev=state.events[i];
     if(!confirm(`Q${ev.quarter} ${fmtClock(ev.clock)} の「#${ev.playerNumber} ${ev.detail}」を取り消しますか？`)) return;
-    applyImpact(state,ev,-1); state.events.splice(i,1); recalcEventScores(state); saveState(state);
-    sessionStorage.setItem(RETURN_KEY,'1'); dialog.close(); location.reload();
+    if(EDITABLE.has(ev.action)) applyImpact(state,ev,-1); else removeAuxImpact(state,ev);
+    state.events.splice(i,1); recalcEventScores(state); saveState(state);
+    sessionStorage.setItem(RETURN_KEY,'1'); if(dialog?.open) dialog.close(); location.reload();
   }
 
   function boot(){
     ensureUI();
-    document.addEventListener('click',e=>{const b=e.target.closest('button');if(b?.dataset.view==='pbp'||b?.id==='historyShortcut')setTimeout(()=>{ensureUI();renderHistory(true)},0)});
+    document.addEventListener('click',e=>{const b=e.target.closest('button');if(b?.dataset.view==='pbp'||b?.id==='historyShortcut')setTimeout(()=>{ensureUI();renderHistory(true);decoratePbpRows()},0)});
+    decoratePbpRows();
     if(sessionStorage.getItem(RETURN_KEY)==='1'){
       sessionStorage.removeItem(RETURN_KEY);
       setTimeout(()=>document.querySelector('button[data-view="pbp"]')?.click(),30);
