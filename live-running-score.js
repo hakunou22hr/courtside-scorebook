@@ -133,7 +133,7 @@
   }
 
   function render(state){
-    if (!state) return;
+    if (!state) state = {teams:{},events:[]};
     const events = scoringEvents(state);
     const scoreA = teamScore(state,'A');
     const scoreB = teamScore(state,'B');
@@ -174,6 +174,7 @@
     }
     rows.innerHTML = html || '<div class="running-score-empty">得点記録はまだありません。</div>';
 
+    if (!latestEvent) scroll.scrollTop = 0;
     if (latestScore > 0){
       const row = rows.querySelector(`[data-score-row="${latestScore}"]`);
       if (row) requestAnimationFrame(()=>{
@@ -192,17 +193,17 @@
   }
 
   function fingerprint(state){
-    if (!state) return '';
+    if (!state) return 'empty';
     return JSON.stringify([
       state?.teams?.A?.name || '',
       state?.teams?.B?.name || '',
+      teamScore(state,'A'), teamScore(state,'B'),
       ...(state.events || []).map(e=>[e.id,e.team,e.playerNumber,e.action,e.points,e.scoreA,e.scoreB,e.quarter,e.corrected])
     ]);
   }
 
   function refresh(){
     const state = readState();
-    if (!state) return;
     const fp = fingerprint(state);
     if (fp === lastFingerprint) return;
     lastFingerprint = fp;
@@ -212,5 +213,10 @@
   refresh();
   setInterval(refresh, 250);
   window.addEventListener('storage', refresh);
+  window.addEventListener('courtside:statechange', refresh);
+  window.addEventListener('pageshow', refresh);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh();
+  });
   document.addEventListener('click', ()=>setTimeout(refresh, 0));
 })();
